@@ -79,38 +79,5 @@ python train_a1.py --mode train --config ./config/3dmatch.json --load_pretrained
 ```
 
 
-### KITTI odometry
-
-#### Data preparation
-
-Download the data from the [KITTI official website](http://www.cvlibs.net/datasets/kitti/eval_odometry.php). The data should be organized as follows:
-- `KITTI`
-    - `velodyne` (point clouds)
-        - `sequences`
-            - `00`
-                - `velodyne`
-                    - `000000.bin`
-                    - ...
-            - ...
-    - `results` (poses)
-        - `00.txt`
-        - ...
-    - `sequences` (sensor calibration and time stamps)
-        - `00`
-            - `calib.txt`
-            - `times.txt`
-        - ...
-
-Please note that we have already generated the information of pairwise point clouds via ``./data/gen_kitti_data.py``, which is stored in ``./data/kitti_list``. Feel free to use it directly or re-generate the information by yourselves.
-
-#### Training
-After modifying the ```data.root``` item to your dataset path in ```./config/kitti.json```, you can use the following command for training.
-```bash
-python trainval.py --mode train --config ./config/kitti.json
-```
-
-#### Testing
-After modifying the ```data.root``` item to your dataset path in ```./config/kitti.json```, you can use the following command for testing.
-```bash
-python trainval.py --mode test --config ./config/kitti.json --load_pretrained cast-epoch-40
-```
+### Coding Example
+```models/cast/regtr.py``` includes the implementation of important submodules for REGTR, and ```models/models/regtr.py``` implements the whole architecture of REGTR as well as the loss functions and evaluation metrics. ```train_a1.py``` demonstrates how to train and test the REGTR model.
