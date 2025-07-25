@@ -27,6 +27,7 @@ class PTT(nn.Module):
         self.backbone = KPConvEncoder(cfg)
         self.proj = nn.Linear(cfg.input_dim_c, cfg.hidden_dim)
         self.transformer = TreeTransformerCrossEncoder(cfg)
+        #self.transformer = TransformerCrossEncoder(cfg)
         self.decoder = CorrespondenceRegressor(cfg.hidden_dim)
         self.bce = torch.nn.BCEWithLogitsLoss()
 
@@ -93,9 +94,8 @@ class PTT(nn.Module):
 
         for _ in range(1, self.pyramid_levels):
             voxel_size = voxel_size * self.growing_factor
-            vi = torch.div(points, voxel_size, rounding_mode='trunc').long()
-            vi = vi - vi.min(dim=-2, keepdim=True).values  # (..., N, 3)
-            m = vi[...,:2].max(dim=-2, keepdim=True).values.div(2, rounding_mode='trunc') + 1  # (..., 1, 2)
+            vi = torch.div(points - points.min(dim=-2,keepdim=True)[0], voxel_size, rounding_mode='floor').long()
+            m = (vi[...,:2].max(dim=-2, keepdim=True).values + 1).log2().floor() + 1  # (..., 1, 2)
             cluster = vi[..., 0] + vi[..., 1] * (2**m[...,0]) + vi[..., 2] * (2**(m[...,0]+m[...,1]))  # (..., N)
 
             _, p2v_map, counts = torch.unique(cluster, sorted=True, return_inverse=True, return_counts=True) # (K,),(N,),(K,)
@@ -112,7 +112,7 @@ class PTT(nn.Module):
             inverse_list.append(p2v_map)
             points_list.append(points)
             counts_list.append(counts)
-        
+
         return {"points": points_list, "index": index_list, "inverse": inverse_list, "counts": counts_list}
     
 
@@ -129,8 +129,9 @@ class PTT(nn.Module):
         src_feats = feats[length_list[-1][0]:]
         
         # 3. Interaction of coarse voxelized features
-        ref_feats, src_feats = self.transformer(
+        ref_feats, src_feats = self.transformer.forward(
             ref_feats, src_feats, self.voxelize(ref_points_c), self.voxelize(src_points_c),
+            #ref_feats[None], src_feats[None], ref_points_c[None], src_points_c[None]
         )
         ref_corr, ref_overlap = self.decoder(ref_feats.squeeze(0))
         src_corr, src_overlap = self.decoder(src_feats.squeeze(0))
