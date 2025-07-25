@@ -29,6 +29,7 @@
 
         "pyramid_levels": 3,
         "growing_factor": 2,
+        "topks": [6, 8],
         "input_dim_f": 512,
         "input_dim_c": 1024,
         "output_dim": 256,
