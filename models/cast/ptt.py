@@ -108,7 +108,7 @@ class PTA(nn.Module):
         support_index = torch.cat([support_index, torch.full_like(support_index[:1], support_len)])  # (M' + 1, L)
         indices = knn_gather(support_index.unsqueeze(0), indices.unsqueeze(0))  # (M' + 1, L), (N', K) -> (B, N', K, L)
         indices = rearrange(indices.squeeze(0), 'n k l -> n (k l)')  # (N', K * L)
-        
+
         mask = torch.full((indices.shape[0], support_len+1), support_len, dtype=torch.long, device=indices.device)
         mask.scatter_(1, indices, indices)  # (N', M + 1)
         max_ROI_size = mask[:, :-1].lt(support_len).count_nonzero(dim=-1).max()
@@ -186,11 +186,11 @@ class PointTreeCrossAttention(PTA):
         src_feats_ = self.norm1(src_feats[-1].unsqueeze(0))
         tgt_feats_ = self.norm1(tgt_feats[-1].unsqueeze(0))
 
-        src_feats_, src_attention = self.full_attention(src_feats_, tgt_feats_)
-        tgt_feats_, tgt_attention = self.full_attention(tgt_feats_, src_feats_)
+        src_feats_new, src_attention = self.full_attention(src_feats_, tgt_feats_)
+        tgt_feats_new, tgt_attention = self.full_attention(tgt_feats_, src_feats_)
         
-        src_feats_ = self.norm2(src_feats_).squeeze(0)
-        tgt_feats_ = self.norm2(tgt_feats_).squeeze(0)
+        src_feats_ = self.norm2(src_feats_new).squeeze(0)
+        tgt_feats_ = self.norm2(tgt_feats_new).squeeze(0)
 
         src_attention_indices = None
         tgt_attention_indices = None
@@ -247,11 +247,11 @@ class PointTreeCrossAttention(PTA):
 
 
 class TreeTransformerCrossEncoderLayer(nn.Module):
-    def __init__(self, d_model, nhead, dim_feedforward=2048, activation="relu", rpe=False):
+    def __init__(self, d_model, nhead, dim_feedforward, topks, activation="relu", rpe=False):
         super().__init__()
         self.rpe = rpe
-        self.sa = PointTreeSelfAttention(d_model, nhead)
-        self.ca = PointTreeCrossAttention(d_model, nhead)
+        self.sa = PointTreeSelfAttention(d_model, nhead, topks)
+        self.ca = PointTreeCrossAttention(d_model, nhead, topks)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
 
@@ -293,18 +293,22 @@ class TreeTransformerCrossEncoderLayer(nn.Module):
         return feature_list
     
     def forward(self, src, tgt, src_tree:Dict[str,List[torch.Tensor]], tgt_tree:Dict[str,List[torch.Tensor]]):
-        src2 = self.norm1(src) + src_tree['ape'][0]
+        src = self.norm1(src)
+        src2 = src + src_tree['ape'][0]
         src_feats = self.pool(self.pool_mlp_before_self_attention, src2, src_tree)
         src_messages = self.sa.forward(src_feats, src_tree)
         src = src + src_messages[0]
         
-        tgt2 = self.norm1(tgt) + tgt_tree['ape'][0]
+        tgt = self.norm1(tgt)
+        tgt2 = tgt + tgt_tree['ape'][0]
         tgt_feats = self.pool(self.pool_mlp_before_self_attention, tgt2, tgt_tree)
         tgt_messages = self.sa.forward(tgt_feats, tgt_tree)
         tgt = tgt + tgt_messages[0]
 
-        src3 = self.norm2(src) + src_tree['ape'][0]
-        tgt3 = self.norm2(tgt) + tgt_tree['ape'][0]
+        src = self.norm2(src)
+        src3 = src + src_tree['ape'][0]
+        tgt = self.norm2(tgt)
+        tgt3 = tgt + tgt_tree['ape'][0]
         src_feats = self.pool(self.pool_mlp_before_cross_attention, src3, src_tree, src_messages)
         tgt_feats = self.pool(self.pool_mlp_before_cross_attention, tgt3, tgt_tree, tgt_messages)
         src_messages, tgt_messages = self.ca.forward(src_feats, tgt_feats, src_tree, tgt_tree)
@@ -323,7 +327,8 @@ class TreeTransformerCrossEncoder(nn.Module):
     def __init__(self, cfg, return_intermediate=False):
         super().__init__()
         self.layers = nn.ModuleList([
-            TreeTransformerCrossEncoderLayer(cfg.hidden_dim, cfg.num_heads, cfg.ffn_dim) for _ in range(cfg.blocks)
+            TreeTransformerCrossEncoderLayer(cfg.hidden_dim, cfg.num_heads, cfg.ffn_dim, cfg.topks)
+            for _ in range(cfg.blocks)
         ])
         self.norm = nn.LayerNorm(cfg.hidden_dim)
         self.return_intermediate = return_intermediate
