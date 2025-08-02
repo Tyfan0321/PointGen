@@ -39,12 +39,13 @@ def weighted_svd(src_points: torch.Tensor, ref_points: torch.Tensor, weights: Op
     src_points_centered = src_points - src_centroid  # (B, N, 3)
     ref_points_centered = ref_points - ref_centroid  # (B, N, 3)
 
-    H = src_points_centered.permute(0, 2, 1) @ (weights * ref_points_centered)
-    U, _, V = torch.svd(H.cpu())  # H = USV^T, SVD operates faster on CPU than on GPU
-    Ut, V = U.transpose(1, 2).to(H.device), V.to(H.device)
-    eye = torch.eye(3, device=H.device).unsqueeze(0).repeat(batch_size, 1, 1)
-    eye[:, -1, -1] = torch.sign(torch.det(V @ Ut))
-    R = V @ eye @ Ut
+    with torch.cuda.amp.autocast(enabled=False):
+        H = src_points_centered.permute(0, 2, 1) @ (weights * ref_points_centered)
+        U, _, V = torch.svd(H.cpu())  # H = USV^T, SVD operates faster on CPU than on GPU
+        Ut, V = U.transpose(1, 2).to(H.device), V.to(H.device)
+        eye = torch.eye(3, device=H.device).unsqueeze(0).repeat(batch_size, 1, 1)
+        eye[:, -1, -1] = torch.sign(torch.det(V @ Ut))
+        R = V @ eye @ Ut
     
     if orthogonalization:
         rot_0 = R[..., 0] / torch.norm(R[...,0], dim=-1, keepdim=True)
