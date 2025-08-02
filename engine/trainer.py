@@ -181,9 +181,9 @@ class EpochBasedTrainer:
                 with torch.cuda.amp.autocast():
                     result_dict = self.step(data_dict)
                 self.scaler.scale(result_dict['loss']).backward()
-                self.scaler.unscale_(self.optimizer)
 
                 if self.clip_grad is not None:
+                    self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(
                         self.model.parameters(), max_norm=self.clip_grad)
                 
