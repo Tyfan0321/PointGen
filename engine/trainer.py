@@ -21,6 +21,16 @@ class EpochBasedTrainer:
         self.save_steps = cfg.save_steps
         self.log_dir = cfg.log_dir + '/'
         self.snapshot_dir = cfg.snapshot_dir + '/'
+        self.fp16 = True
+
+        if self.fp16:
+            self.scaler = torch.cuda.amp.GradScaler(
+                init_scale=2.**15,    # 增大初始缩放因子（默认 2**16）
+                growth_factor=1.5,    # 降低增长因子（默认 2.0）
+                backoff_factor=0.8,   # 提高缩减因子（默认 0.5）
+                growth_interval=500,  # 延长增长间隔（默认 2000）
+                enabled=True
+            )
 
         random.seed(cfg.seed)
         np.random.seed(cfg.seed)
@@ -148,21 +158,38 @@ class EpochBasedTrainer:
     
 
     def train_epoch(self):
+        start = time.time()
         logs = {}
         self.optimizer.zero_grad()
         steps = len(self.train_loader)
+
         for iteration, data_dict in enumerate(self.train_loader):
             self.iteration += 1
             data_dict = self.to_cuda(data_dict)
-            result_dict = self.step(data_dict)
-            result_dict['loss'].backward()
-            
-            if self.clip_grad is not None:
-                nn.utils.clip_grad_norm_(
-                    self.model.parameters(), max_norm=self.clip_grad)
-            
-            self.optimizer.step()
-            self.optimizer.zero_grad()
+            if not self.fp16:
+                result_dict = self.step(data_dict)
+                result_dict['loss'].backward()
+                
+                if self.clip_grad is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=self.clip_grad)
+                
+                self.optimizer.step()
+                self.optimizer.zero_grad()
+
+            else:
+                with torch.cuda.amp.autocast():
+                    result_dict = self.step(data_dict)
+                self.scaler.scale(result_dict['loss']).backward()
+                self.scaler.unscale_(self.optimizer)
+
+                if self.clip_grad is not None:
+                    torch.nn.utils.clip_grad_norm_(
+                        self.model.parameters(), max_norm=self.clip_grad)
+                
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad()
             
             result_dict = self.release_cuda(result_dict)
             self.summary_board.update_from_dict(result_dict)
@@ -171,7 +198,7 @@ class EpochBasedTrainer:
             print("Epoch %d [%d/%d]"%(self.epoch, iteration+1, steps), end=' ')
             for key, value in result_dict.items():
                 print(key, "%.4f"%float(value), end='; ')
-            print()
+            print("%.4f s"%(time.time()-start))
 
             if self.save_steps > 0 and (iteration + 1) % self.save_steps == 0:
                 self.save_snapshot("-epoch-%02d-%d"%(self.epoch, iteration + 1), False)
