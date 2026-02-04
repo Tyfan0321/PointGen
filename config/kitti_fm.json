@@ -1,0 +1,84 @@
+{
+    "seed": 1,
+    "runname": "kitti",
+    "output_dir": "./result/12.22_kitti_wo_decay_res_x_pred_v_loss/",
+    "logging_dir": "logs",
+    "log_with": "tensorboard",
+    "mixed_precision": "no",
+    "gradient_accumulation_steps": 4,
+    "clip_grad_norm": 1.0,
+    "num_workers": 8,
+    "train_batch_size": 16,
+    "num_train_epochs": 500,
+    "num_train_steps": null,
+    "log_steps": 20,
+    "ckpt_epochs": 50,
+    "val_epochs": 1,
+    "feat_stop_epoch": null,
+    "do_gen": true,
+    "num_gen_samples": 5,
+    "num_inference_steps": 10,
+    "inference_type": "fm-euler",
+    
+    "data": {
+        "root": "/remote-home/share/tyf/KITTI/sequences",
+        "data_list": "./data/kitti_list/",
+        "npoints": 30000,
+        "voxel_size": 0.3,
+        "augment": 1.0
+    },
+
+    "scheduler": {
+        "num_train_timesteps": 1000
+    },
+
+    "processor": {
+        "kpconv_layers": 5,
+        "voxel_size": 0.3,
+        "init_radius": 0.9,
+        "neighbor_limits": [35, 35, 36, 37, 41]
+    },
+
+    "model": {
+        "kpconv_layers": 5,
+        "input_dim": 1,
+        "init_dim": 64,
+        "kernel_size": 15,
+        "init_radius": 0.9,
+        "init_sigma": 0.6,
+        "in_dim": 3,
+        "in_dim_context": 2048,
+        "hidden_dim": 1024,
+        "num_attention_heads": 16,
+        "activation_fn": "gelu",
+        "num_layers": 6,
+        "norm_type": "ada_norm_zero",
+        "scale": [3, 3, 0.8]
+    },
+
+    "optim": {
+        "lr": 1e-4,
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.999,
+        "adam_eps": 1e-8,
+        "adam_weight_decay": 1e-4
+    },
+
+    "lr_scheduler": {
+        "name": "cosine",
+        "lr_warmup_steps": 1000,
+        "lr_num_cycles": 0.5
+    },
+    
+    "loss": {
+        "learn_w": false,
+        "r_p": 0.45,
+        "r_n": 0.6
+    },
+
+    "eval": {
+        "acceptance_overlap": 0.0,
+        "rre_threshold": 5.0,
+        "rte_threshold": 2.0
+    }
+}

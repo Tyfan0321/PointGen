@@ -1,2 +1,0 @@
-Validate Epoch 30 (619260 iterations): ARR: 0.9307; ATE: 0.0508; ARE: 1.7697
-loss:0.500; l_feat:0.693; l_corr:0.113; l_conf:0.317; TE:0.147; RE:4.333; IR:0.912; IR@250:0.913; IR@500:0.912; RR:0.933; 

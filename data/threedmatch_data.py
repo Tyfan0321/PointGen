@@ -79,7 +79,13 @@ class IndoorDataset(Dataset):
         ref_ov = torch.from_numpy(ref_ov)
         src_ov = torch.from_numpy(src_ov)
         Tr = torch.from_numpy(Tr)
-        return ref_points, src_points, ref_ov, src_ov, Tr
+        return {
+            "ref_points": ref_points,
+            "src_points": src_points,
+            "ref_overlap": ref_ov,
+            "src_overlap": src_ov,
+            "Tr": Tr,
+        }
     
     def sample_random_rotation(self, pitch_scale=np.pi/3., roll_scale=np.pi/4.):
         roll = np.random.uniform(-roll_scale, roll_scale)
@@ -92,7 +98,7 @@ class IndoorDataset(Dataset):
 
 
 class IndoorTestDataset(Dataset):
-    def __init__(self, root, seqs, npoints, voxel_size, data_list, non_consecutive=False):
+    def __init__(self, root, seqs, npoints, voxel_size, data_list, non_consecutive=False, **kwargs):
         super(IndoorTestDataset, self).__init__()
         self.root = root
         self.seqs = seqs
@@ -136,7 +142,13 @@ class IndoorTestDataset(Dataset):
         src_ov = torch.from_numpy(src_ov)
         Tr = torch.from_numpy(Tr)
         Cov = torch.from_numpy(Cov)
-        return ref_points, src_points, ref_ov, src_ov, Tr, Cov
+        return {
+            "ref_points": ref_points,
+            "src_points": src_points,
+            "ref_overlap": ref_ov,
+            "src_overlap": src_ov,
+            "Tr": Tr,
+        }
     
     def read_transformation_log(self, seq:str):
         with open(os.path.join(seq, 'gt.log')) as f:

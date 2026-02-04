@@ -1,0 +1,17 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "/remote-home/ums_tangyufan/PointGen/train_gen.py",
+            "cwd": "/remote-home/ums_tangyufan/PointGen/",
+            "console": "integratedTerminal",
+            "args": [
+                "--config", "./config/kitti_gen.json",
+                // "--resume", "latest"
+            ]
+        }
+    ]
+}

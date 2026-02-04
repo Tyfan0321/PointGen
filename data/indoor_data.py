@@ -119,7 +119,12 @@ class IndoorTestDataset(Dataset):
         dst_points = torch.from_numpy(dst_points)
         Tr = torch.from_numpy(Tr)
         Cov = torch.from_numpy(Cov)
-        return src_points, dst_points, Tr, Cov
+        return {
+            "src_points": src_points,
+            "tgt_points": dst_points,
+            "Tr": Tr,
+            "Cov": Cov,
+        }
     
     def read_transformation_log(self, seq:str):
         with open(os.path.join(seq, 'gt.log')) as f:

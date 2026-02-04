@@ -5,6 +5,7 @@ from torch.utils.data import Dataset
 import os
 import numpy as np
 import MinkowskiEngine as ME
+from scipy.spatial import cKDTree
 
 from models.utils import generate_rand_rotm
 
@@ -28,6 +29,11 @@ def read_kitti_bin_voxel(filename, npoints=None, voxel_size=None) -> np.ndarray:
     scan = scan[np.logical_and(dist > 3., scan[:, 2] > -3.5)]
     return scan
 
+def compute_overlap(src: np.ndarray, tgt: np.ndarray, search_voxel_size: float):
+    has_corr_tgt: np.ndarray = cKDTree(src).query(tgt,k=1)[0] <= search_voxel_size
+    has_corr_src: np.ndarray = cKDTree(tgt).query(src,k=1)[0] <= search_voxel_size
+    return has_corr_src, has_corr_tgt
+
 class KittiDataset(Dataset):
     def __init__(self, root, seqs, npoints, voxel_size, data_list, augment=0.0):
         super(KittiDataset, self).__init__()
@@ -35,6 +41,7 @@ class KittiDataset(Dataset):
         self.seqs = seqs
         self.npoints = npoints
         self.voxel_size = voxel_size
+        self.overlap_radius = voxel_size * 1.5
         self.augment = augment
         self.data_list = data_list
         self.dataset = self.make_dataset()
@@ -63,16 +70,26 @@ class KittiDataset(Dataset):
         dst_points = read_kitti_bin_voxel(data_dict['points2'], self.npoints, self.voxel_size)
         Tr = data_dict['Tr']
         
-        if np.random.rand() < self.augment:
+        if self.augment > 0 and np.random.rand() < self.augment:
             aug_T = np.eye(4, dtype=np.float32)
             aug_T[:3,:3] = generate_rand_rotm(1.0, 1.0)
-            dst_points = dst_points @ aug_T[:3,:3]
-            Tr = Tr @ aug_T
+            dst_points = dst_points @ aug_T[:3,:3].T
+            Tr = Tr @ aug_T.T
         
+        src_ov, dst_ov = compute_overlap(
+            src_points, dst_points @ Tr[:3,:3].T + Tr[:3,3:].T, self.overlap_radius)
+
         src_points = torch.from_numpy(src_points)
         dst_points = torch.from_numpy(dst_points)
         Tr = torch.from_numpy(Tr)
-        return src_points, dst_points, Tr
+
+        return {
+            "ref_points": src_points,
+            "src_points": dst_points,
+            "Tr": Tr,
+            "ref_overlap": src_ov,
+            "src_overlap": dst_ov,
+        }
     
     def __len__(self):
         return len(self.dataset)
