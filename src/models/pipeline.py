@@ -14,9 +14,9 @@ from diffusers import (
 from diffusers.schedulers import KarrasDiffusionSchedulers
 from diffusers.utils.torch_utils import randn_tensor
 
-from models.generative.processor import PointCloudProcessor
-from models.generative.transformer_regtr import RegTrGenerative
-from models.utils import apply_transform
+from src.engine.model_processor import PointCloudProcessor
+from src.models.transformer_regtr import RegTrGenerative
+from src.utils.point_cloud_utils import apply_transform
 
 
 SCHEDULER_MAP = {

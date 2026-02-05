@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.kpconv.modules import ConvBlock, ResidualBlock
+from src.models.kpconv.modules import ConvBlock, ResidualBlock
 
 
 class KPConvEncoder(nn.Module):

@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.kpconv.modules import ConvBlock, ResidualBlock, NearestUpsampleBlock
+from src.models.kpconv.modules import ConvBlock, ResidualBlock, NearestUpsampleBlock
 
 
 class KPConvFPN(nn.Module):

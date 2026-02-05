@@ -17,7 +17,7 @@ from diffusers.models.embeddings import TimestepEmbedding, Timesteps
 from diffusers.models.normalization import AdaLayerNormZero, AdaLayerNorm, AdaLayerNormZeroSingle
 # from diffusers.models.attention_dispatch import dispatch_attention_fn
 
-from models.kpconv.encoder import KPConvEncoder
+from src.models.kpconv.encoder import KPConvEncoder
 
 
 @dataclass

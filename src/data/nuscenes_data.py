@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import MinkowskiEngine as ME
 from torch.utils.data import Dataset
-from models.utils import generate_rand_rotm
+from src.utils.point_cloud_utils import generate_rand_rotm
 
 def read_nuscenes_bin_voxel(filename, npoints=None, voxel_size=None) -> np.ndarray:
     scan = np.fromfile(filename, dtype=np.float32, count=-1).reshape([-1,5])

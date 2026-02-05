@@ -7,7 +7,7 @@ import numpy as np
 import MinkowskiEngine as ME
 from scipy.spatial import cKDTree
 
-from models.utils import generate_rand_rotm
+from src.utils.point_cloud_utils import generate_rand_rotm
 
 
 def read_kitti_bin_voxel(filename, npoints=None, voxel_size=None) -> np.ndarray:

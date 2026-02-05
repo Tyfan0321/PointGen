@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.utils import grid_subsample_gpu, radius_search_gpu
+from src.utils.point_cloud_utils import grid_subsample_gpu, radius_search_gpu
 
 
 class PointCloudProcessor:

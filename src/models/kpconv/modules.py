@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops import knn_points
-from models.utils import index_select
-from models.kpconv.kpconv import KPConv
+from src.utils.point_cloud_utils import index_select
+from src.models.kpconv.kpconv import KPConv
 
 
 def nearest_upsample(x, upsample_indices):

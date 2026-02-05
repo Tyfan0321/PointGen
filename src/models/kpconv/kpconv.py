@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from models.utils import index_select
-from models.kpconv.kernel_points import load_kernels
+from src.utils.point_cloud_utils import index_select
+from src.models.kpconv.kernel_points import load_kernels
 
 
 class KPConv(nn.Module):
