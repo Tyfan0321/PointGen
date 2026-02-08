@@ -3,7 +3,7 @@ from omegaconf import DictConfig
 from src.engine.diffusion_trainer import DiffusionTrainer
 
 
-@hydra.main(version_base=None, config_path="./config", config_name="config")
+@hydra.main(version_base=None, config_path="./config", config_name="config_copy")
 def main(cfg: DictConfig):
     # 添加 resume 和 eval_only 参数
     import argparse
@@ -21,7 +21,6 @@ def main(cfg: DictConfig):
         help="仅运行评估，不进行训练"
     )
     args = parser.parse_args()
-    
     print("Creating DiffusionTrainer...")
     trainer = DiffusionTrainer(cfg)
     

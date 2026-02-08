@@ -29,7 +29,7 @@ class KPConvEncoder(torch.nn.Module):
         hidden_dim = init_dim * 2 * (2 ** (kpconv_layers - 1))
         self.out_channels = hidden_dim
     
-    def forward(self, points_list, neighbors_list, subsampling_list):
+    def forward(self, points_list, neighbors_list, subsampling_list, length_list):
         feats_list= self.model(points_list, neighbors_list, subsampling_list)
         feats_c = feats_list[-1]
 
@@ -60,7 +60,7 @@ class SonataEncoder(torch.nn.Module):
             else:
                 self.model = load("sonata")
         else:
-            assert "pretrained_ckpt" is None, "Only support pretrained model"
+            assert not pretrained_ckpt, "Only support pretrained model"
         
         if freeze:
             for param in self.model.parameters():

@@ -37,11 +37,11 @@ class DiffusionDataProcessor:
                 [ref_points[0], src_points[0]], 
                 [ref_overlap[0], src_overlap[0]] if ref_overlap is not None else None
             )
-            ref_data_dict = points_list[0]
-            src_data_dict = points_list[1]
+            ref_point_dict = points_list[0]
+            src_point_dict = points_list[1]
             
-            ref_points_c = ref_data_dict["coord"]
-            src_points_c = src_data_dict["coord"]
+            ref_points_c = ref_point_dict["coord"]
+            src_points_c = src_point_dict["coord"]
 
         
         tgt_points_c = src_points_c.clone()
@@ -66,9 +66,9 @@ class DiffusionDataProcessor:
         sample = sigmas * noise + (1.0 - sigmas) * target
         
         if self.processor.type == "kpconv":
-            encoder_inputs = (points_list, neighbors_list, subsampling_list)
+            encoder_inputs = [points_list, neighbors_list, subsampling_list, length_list]
         elif self.processor.type == "sonata":   
-            encoder_inputs = (ref_data_dict, src_data_dict)
+            encoder_inputs = [ref_point_dict, src_point_dict]
         
         return {
             "sample": sample,

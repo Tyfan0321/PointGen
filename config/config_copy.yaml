@@ -25,23 +25,22 @@ logging_dir: "logs"
 log_with: "tensorboard"
 mixed_precision: "no"
 
-# 数据配置
+# 噪声调度器配置
+scheduler:
+  num_train_timesteps: 1000
+
+
 data:
-  dataset_type: "3dmatch"
+  dataset_type: 3dmatch
   root: "/remote-home/share/datasets/3DMatch/raw_data"
   data_list: "./data/3dmatch_list/"
   npoints: 30000
   voxel_size: 0.025
   augment: 1.0
 
-# 噪声调度器配置
-scheduler:
-  num_train_timesteps: 1000
-
-encoder_type: sonata
 defaults:
   - _self_
-  - encoder: encoders/${data.dataset_type}/${encoder_type}
+  - encoder: 3dmatch/kpconv
 
 # 模型配置
 model:

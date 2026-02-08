@@ -146,8 +146,8 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         **kwargs
     ):
         super().__init__()
-        
-        self.encoder = self._init_encoder(encoder_config)        
+        self.encoder_type = encoder_config.get("type", "")
+        self.encoder = self._init_encoder(encoder_config)       
         self.in_dim_context = self.encoder.out_channels
 
         self.pos_emb = RegTrPositioinEmbedding(in_channels=3, emb_dim=hidden_dim)
@@ -223,10 +223,8 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         
         Returns:
             Initialized encoder module
-        """
-        encoder_type = encoder_config.get("type", "sonata")
-        
-        if encoder_type == "kpconv":
+        """        
+        if self.encoder_type == "kpconv":
             from src.models.encoders import KPConvEncoder
             return KPConvEncoder(
                 encoder_config.get("kpconv_layers", 4),
@@ -236,7 +234,7 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
                 encoder_config.get("init_sigma", 0.05),
                 encoder_config.get("init_radius", 0.0625)
             )
-        elif encoder_type == "sonata":
+        elif self.encoder_type == "sonata":
             from src.models.encoders import SonataEncoder
             return SonataEncoder(
                 pretrained=encoder_config.get("pretrained", True),
@@ -244,7 +242,7 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
                 pretrained_ckpt=encoder_config.get("pretrained_ckpt", None)
             )
         else:
-            raise ValueError(f"Unsupported encoder type: {encoder_type}")
+            raise ValueError(f"Unsupported encoder type: {self.encoder_type}")
 
     def forward(
         self,
@@ -253,10 +251,11 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         ref_points_c: torch.Tensor,
         src_points_c: torch.Tensor,
         tgt_points_c: torch.Tensor,
-        encoder_inputs: Union[Dict[str, Any], List[torch.FloatTensor]],
+        encoder_inputs: List,
         overlap_list: List[torch.FloatTensor] = None,
         tgt_points_c_corr: torch.Tensor = None,
         return_dict: bool = True,
+        **kwargs
     ) -> Union[Dict[str, torch.Tensor], Tuple]:
         """
         Args:
@@ -270,16 +269,14 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             return_dict (`bool`, *optional*, defaults to `True`):
                 Whether or not to return a [`RegTrModelOutput`] instead of a plain tuple.
         """
-        encoder_type = self.config.encoder.get("type", "sonata")
-        
-        if encoder_type == "kpconv":
-            points_list, neighbors_list, subsampling_list = encoder_inputs
-            ref_feats, src_feats = self.encoder(points_list, neighbors_list, subsampling_list)
-        elif encoder_type == "sonata":
-            ref_data_dict, src_data_dict = encoder_inputs
+        if self.encoder_type == "kpconv":
+            points_list, neighbors_list, subsampling_list, length_list = encoder_inputs
+            ref_feats, src_feats = self.encoder(points_list, neighbors_list, subsampling_list, length_list)
+        elif self.encoder_type == "sonata":
+            ref_point, src_point = encoder_inputs
             
-            ref_feats = self.proj_in_context(self.encoder(ref_data_dict))
-            src_feats = self.proj_in_context(self.encoder(src_data_dict))
+            ref_feats = self.encoder(ref_point)
+            src_feats = self.encoder(src_point)
             
             assert ref_feats.shape[0] == ref_points_c.shape[0]
             assert src_feats.shape[0] == src_points_c.shape[0]
@@ -294,6 +291,9 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         tgt_points_c = tgt_points_c.unsqueeze(0)
         ref_feats = ref_feats.unsqueeze(0)
         src_feats = src_feats.unsqueeze(0)
+
+        ref_feats = self.proj_in_context(ref_feats)
+        src_feats = self.proj_in_context(src_feats)
 
         ref_pos_emb = self.pos_emb(ref_points_c)
         src_pos_emb = self.pos_emb(src_points_c)

@@ -25,7 +25,7 @@ class DiffusionTrainer(BaseTrainer):
         
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset, 
-            batch_size=self.train_batch_size, 
+            batch_size=1, 
             num_workers=self.cfg.num_workers, 
             shuffle=True, 
             pin_memory=True
@@ -33,23 +33,23 @@ class DiffusionTrainer(BaseTrainer):
         
         self.val_loader = torch.utils.data.DataLoader(
             val_dataset, 
-            batch_size=self.train_batch_size, 
+            batch_size=1, 
             num_workers=self.cfg.num_workers, 
             shuffle=False, 
             pin_memory=True
         )
     
     def prepare_model(self):
-        encoder_config = self.cfg.encoder
+        encoder_config = self.cfg.encoder.encoder
         
         self.model = RegTrGenerative(
-            encoder=encoder_config,
+            encoder_config=encoder_config,
             **self.cfg.model,
             **self.cfg.loss
         )
         
         processor_type = encoder_config.get("type", "sonata")
-        processor_config = encoder_config.get("processor", {})
+        processor_config = self.cfg.encoder.processor
 
         self.processor = create_point_cloud_processor(
             processor_type,
