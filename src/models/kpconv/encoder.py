@@ -4,7 +4,7 @@ import torch.nn as nn
 from src.models.kpconv.modules import ConvBlock, ResidualBlock
 
 
-class KPConvEncoder(nn.Module):
+class KPConv(nn.Module):
     def __init__(
         self, 
         kpconv_layers,
@@ -14,7 +14,7 @@ class KPConvEncoder(nn.Module):
         init_sigma,
         init_radius,
     ):
-        super(KPConvEncoder, self).__init__()
+        super(KPConv, self).__init__()
         self.kpconv_layers = kpconv_layers
         self.input_dim = input_dim
         self.init_dim = init_dim

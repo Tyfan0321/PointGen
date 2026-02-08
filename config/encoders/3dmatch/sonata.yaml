@@ -1,0 +1,10 @@
+# Sonata encoder configuration for 3DMatch dataset
+
+# Encoder configuration
+type: "sonata"
+pretrained: true
+freeze: true
+pretrained_ckpt: "path/to/pretrained/model.pth"
+
+# Processor configuration
+processor:

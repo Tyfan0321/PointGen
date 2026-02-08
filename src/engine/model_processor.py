@@ -4,8 +4,8 @@ import torch.nn as nn
 from src.utils.point_cloud_utils import grid_subsample_gpu, radius_search_gpu
 
 
-class PointCloudProcessor:
-    """Preprocessor for point cloud data used in REGTR generative model."""
+class KPConvPointCloudProcessor:
+    """Preprocessor for point cloud data used in REGTR generative model with KPConv backbone."""
     
     def __init__(
         self,
@@ -14,6 +14,7 @@ class PointCloudProcessor:
         init_radius,
         neighbor_limits
     ):
+        self.type = "kpconv"
         self.kpconv_layers = kpconv_layers
         self.voxel_size = voxel_size
         self.init_radius = init_radius
@@ -70,3 +71,44 @@ class PointCloudProcessor:
             return points_list, neighbors_list, subsampling_list, length_list, overlap_list
         else: 
             return points_list, neighbors_list, subsampling_list, length_list, None
+
+
+class SonataPointCloudProcessor:
+    """Preprocessor for point cloud data used in REGTR generative model with Sonata backbone."""
+    def __init__(self):
+        self.type = "sonata"
+
+    @torch.no_grad()
+    def __call__(self, points, overlap=None):
+        f"""
+        Args: 
+            points: list[torch.Tensor], each [N, 3]
+        """
+        if isinstance(points, torch.Tensor):
+            points = [points]
+
+        if overlap is not None:
+            if isinstance(overlap, torch.Tensor):
+                overlap_list = [overlap.float()]
+            else:
+                overlap_list = [torch.cat(overlap, dim=0).float()]
+        
+        points_list = []
+        for point_cloud in points:
+            point = {
+                "coord": point_cloud,
+                "color": point_cloud.new_zeros(point_cloud.shape[0], 3),
+                "normal": point_cloud.new_zeros(point_cloud.shape[0], 3),
+            }
+            points_list.append(point)
+        
+        return points_list, overlap_list
+
+
+def create_point_cloud_processor(processor_type, **kwargs):
+    if processor_type == "kpconv":
+        return KPConvPointCloudProcessor(**kwargs)
+    elif processor_type == "sonata":
+        return SonataPointCloudProcessor(**kwargs)
+    else:
+        raise ValueError(f"Unsupported processor type: {processor_type}")

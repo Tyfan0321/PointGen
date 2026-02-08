@@ -1,16 +1,13 @@
-import argparse
-from src.utils.config_utils import load_config
+import hydra
+from omegaconf import DictConfig
 from src.engine.diffusion_trainer import DiffusionTrainer
 
 
-def main():
+@hydra.main(version_base=None, config_path="./config", config_name="config")
+def main(cfg: DictConfig):
+    # 添加 resume 和 eval_only 参数
+    import argparse
     parser = argparse.ArgumentParser(description="PointGen 训练脚本")
-    parser.add_argument(
-        "--config", 
-        default="./config/config.yaml", 
-        type=str, 
-        help="配置文件路径"
-    )
     parser.add_argument(
         "--resume", 
         type=str, 
@@ -24,9 +21,6 @@ def main():
         help="仅运行评估，不进行训练"
     )
     args = parser.parse_args()
-    
-    print(f"Loading configuration from {args.config}")
-    cfg = load_config(args.config)
     
     print("Creating DiffusionTrainer...")
     trainer = DiffusionTrainer(cfg)

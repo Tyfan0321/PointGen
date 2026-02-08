@@ -9,7 +9,7 @@ from src.engine.data_processor import DiffusionDataProcessor
 from src.engine.evaluator import DiffusionEvaluator
 from src.data.dataset_factory import DatasetFactory
 from src.models.transformer_regtr import RegTrGenerative
-from src.engine.model_processor import PointCloudProcessor
+from src.engine.model_processor import create_point_cloud_processor
 
 
 class DiffusionTrainer(BaseTrainer):
@@ -40,8 +40,21 @@ class DiffusionTrainer(BaseTrainer):
         )
     
     def prepare_model(self):
-        self.model = RegTrGenerative(**self.cfg.model, **self.cfg.loss)
-        self.processor = PointCloudProcessor(**self.cfg.processor)
+        encoder_config = self.cfg.encoder
+        
+        self.model = RegTrGenerative(
+            encoder=encoder_config,
+            **self.cfg.model,
+            **self.cfg.loss
+        )
+        
+        processor_type = encoder_config.get("type", "sonata")
+        processor_config = encoder_config.get("processor", {})
+
+        self.processor = create_point_cloud_processor(
+            processor_type,
+            **processor_config
+        )
         
         self.optimizer = optim.AdamW(
             self.model.parameters(), 
@@ -61,9 +74,15 @@ class DiffusionTrainer(BaseTrainer):
         )
         
         self.noise_scheduler = FlowMatchEulerDiscreteScheduler(**self.cfg.scheduler)
+        
+        self.data_processor.processor = self.processor
+        self.data_processor.noise_scheduler = self.noise_scheduler
+        
+        self.evaluator.processor = self.processor
+        self.evaluator.noise_scheduler = self.noise_scheduler
     
     def train_step(self, data_dict, current_epoch):
-        train_data_dict = self.data_processor.prepare_noisy_data(data_dict, self.noise_scheduler)
+        train_data_dict = self.data_processor.prepare_noisy_data(data_dict)
         
         model_output = self.model(**train_data_dict)
         
@@ -79,7 +98,7 @@ class DiffusionTrainer(BaseTrainer):
         return loss_dict
     
     def val_step(self, data_dict):
-        val_data_dict = self.data_processor.prepare_noisy_data(data_dict, self.noise_scheduler)
+        val_data_dict = self.data_processor.prepare_noisy_data(data_dict)
         
         with torch.no_grad():
             model_output = self.model(**val_data_dict)
@@ -115,6 +134,6 @@ class DiffusionTrainer(BaseTrainer):
             self.accelerator.log(val_log, step=epoch + 1)
             
             if self.do_gen:
-                gen_log = self.evaluator.evaluate(self.model, self.processor, self.noise_scheduler, val_loader)
+                gen_log = self.evaluator.evaluate(self.model, val_loader)
                 self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
                 self.accelerator.log(gen_log, step=epoch + 1)

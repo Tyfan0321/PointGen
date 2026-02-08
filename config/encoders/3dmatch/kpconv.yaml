@@ -1,0 +1,18 @@
+# KPConv encoder configuration for 3DMatch dataset
+
+# Encoder configuration
+type: "kpconv"
+kpconv_layers: 4
+input_dim: 1
+init_dim: 64
+kernel_size: 15
+init_radius: 0.0625
+init_sigma: 0.05
+hidden_dim: 1024
+
+# Processor configuration
+processor:
+  kpconv_layers: 4
+  voxel_size: 0.025
+  init_radius: 0.0625
+  neighbor_limits: [26, 21, 22, 25]

@@ -14,8 +14,6 @@ from diffusers import (
 from diffusers.schedulers import KarrasDiffusionSchedulers
 from diffusers.utils.torch_utils import randn_tensor
 
-from src.engine.model_processor import PointCloudProcessor
-from src.models.transformer_regtr import RegTrGenerative
 from src.utils.point_cloud_utils import apply_transform
 
 
@@ -90,9 +88,9 @@ def retrieve_timesteps(
 class PointGenPipeline(DiffusionPipeline):
     def __init__(
         self, 
-        scheduler: KarrasDiffusionSchedulers,
-        processor: PointCloudProcessor,
-        transformer: RegTrGenerative,
+        scheduler,
+        processor,
+        transformer,
         scheduler_type: str = "ddim",
     ):
         super().__init__() 
@@ -111,11 +109,23 @@ class PointGenPipeline(DiffusionPipeline):
         ref_overlap = data_dict.get("ref_overlap", None)
         src_overlap = data_dict.get("src_overlap", None)
 
-        points_list, neighbors_list, subsampling_list, length_list, overlap_list = self.processor(
+        processor_output = self.processor(
             [ref_points[0], src_points[0]], [ref_overlap[0], src_overlap[0]] if ref_overlap is not None else None
         )
-        ref_points_c = points_list[-1][:length_list[-1][0]].to(dtype=self.transformer.dtype)
-        src_points_c = points_list[-1][length_list[-1][0]:].to(dtype=self.transformer.dtype)
+        processor_type = self.processor.type
+        if processor_type == "kpconv":
+            points_list, neighbors_list, subsampling_list, length_list, overlap_list = processor_output
+            ref_points_c = points_list[-1][:length_list[-1][0]].to(dtype=self.transformer.dtype)
+            src_points_c = points_list[-1][length_list[-1][0]:].to(dtype=self.transformer.dtype)
+            encoder_inputs = (points_list, neighbors_list, subsampling_list)
+        elif processor_type == "sonata":
+            points_list, overlap_list = processor_output
+            ref_data_dict = points_list[0]
+            src_data_dict = points_list[1]
+            ref_points_c = ref_data_dict["coord"].to(dtype=self.transformer.dtype)
+            src_points_c = src_data_dict["coord"].to(dtype=self.transformer.dtype)
+            
+            encoder_inputs = [ref_data_dict, src_data_dict]
 
         Tr = data_dict.get("Tr")
         tgt_points_c = apply_transform(src_points_c, Tr[0])
@@ -128,9 +138,7 @@ class PointGenPipeline(DiffusionPipeline):
             "src_points_c": src_points_c,
             "tgt_points_c": tgt_points_c,
             "tgt_points_c_corr": tgt_points_c_corr,
-            "points_list": points_list,
-            "neighbors_list": neighbors_list,
-            "subsampling_list": subsampling_list,
+            "encoder_inputs": encoder_inputs,
             "overlap_list": overlap_list,
         }
     

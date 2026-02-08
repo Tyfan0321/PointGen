@@ -17,7 +17,6 @@ from diffusers.models.embeddings import TimestepEmbedding, Timesteps
 from diffusers.models.normalization import AdaLayerNormZero, AdaLayerNorm, AdaLayerNormZeroSingle
 # from diffusers.models.attention_dispatch import dispatch_attention_fn
 
-from src.models.kpconv.encoder import KPConvEncoder
 
 
 @dataclass
@@ -123,22 +122,16 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
     @register_to_config
     def __init__(
         self,
-        # KpConv specific parameters
-        kpconv_layers: int = 4,
-        input_dim: int = 1,
-        init_dim: int = 64,
-        kernel_size: int = 15,
-        init_radius: float = 0.0625,
-        init_sigma: float = 0.05,
+        # Encoder configuration
+        encoder_config: dict = None,
+        # RegDiT specific parameters
         # # Geometric structure embedding parameters
         # sigma_d: float = 0.2,
         # sigma_a: float = 15,
         # angle_k: int = 3,
         # reduction_a: str = "max",
-        # RegDiT specific parameters
         in_dim: int = 3,
         out_dim: Optional[int] = None,
-        in_dim_context: int = 1024,
         hidden_dim: int = 256,
         num_attention_heads: int = 8,
         attention_head_dim: Optional[int] = None,
@@ -153,7 +146,9 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         **kwargs
     ):
         super().__init__()
-        self.backbone = KPConvEncoder(kpconv_layers, input_dim, kernel_size, init_dim, init_sigma, init_radius) 
+        
+        self.encoder = self._init_encoder(encoder_config)        
+        self.in_dim_context = self.encoder.out_channels
 
         self.pos_emb = RegTrPositioinEmbedding(in_channels=3, emb_dim=hidden_dim)
         self.time_emb = TimestepProjEmbedding(emb_dim=hidden_dim)
@@ -174,7 +169,7 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         ])
 
         # Context transformer (no timesteps conditioning but with standard normalization and cross-attention)
-        self.proj_in_context = nn.Linear(in_dim_context, hidden_dim)
+        self.proj_in_context = nn.Linear(self.in_dim_context, hidden_dim)
         self.context_transformer = nn.ModuleList([
             BasicTransformerBlock(
                 dim=hidden_dim,
@@ -192,7 +187,6 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         out_dim = out_dim if out_dim is not None else in_dim
         self.norm_out = nn.LayerNorm(hidden_dim, elementwise_affine=True, eps=1e-6)
         self.norm_out_context = nn.LayerNorm(hidden_dim, elementwise_affine=True, eps=1e-6)
-        # self.proj_out = nn.Linear(hidden_dim, out_dim)
         self.proj_out = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
@@ -200,13 +194,6 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             nn.SiLU(),
             nn.Linear(hidden_dim // 2, out_dim, bias=False)
         )
-        # self.proj_out = nn.Sequential(
-        #     nn.Linear(hidden_dim, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, hidden_dim),
-        #     nn.ReLU(),
-        #     nn.Linear(hidden_dim, out_dim)
-        # )
 
         
         # Extra Loss
@@ -226,6 +213,38 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         self.ov_head = None
 
         self.scale = kwargs.get("scale") or [1, 1, 1]
+    
+    def _init_encoder(self, encoder_config):
+        """
+        Initialize encoder based on configuration
+        
+        Args:
+            encoder_config: Encoder configuration dictionary
+        
+        Returns:
+            Initialized encoder module
+        """
+        encoder_type = encoder_config.get("type", "sonata")
+        
+        if encoder_type == "kpconv":
+            from src.models.encoders import KPConvEncoder
+            return KPConvEncoder(
+                encoder_config.get("kpconv_layers", 4),
+                encoder_config.get("input_dim", 1),
+                encoder_config.get("kernel_size", 15),
+                encoder_config.get("init_dim", 64),
+                encoder_config.get("init_sigma", 0.05),
+                encoder_config.get("init_radius", 0.0625)
+            )
+        elif encoder_type == "sonata":
+            from src.models.encoders import SonataEncoder
+            return SonataEncoder(
+                pretrained=encoder_config.get("pretrained", True),
+                freeze=encoder_config.get("freeze", True),
+                pretrained_ckpt=encoder_config.get("pretrained_ckpt", None)
+            )
+        else:
+            raise ValueError(f"Unsupported encoder type: {encoder_type}")
 
     def forward(
         self,
@@ -234,9 +253,7 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         ref_points_c: torch.Tensor,
         src_points_c: torch.Tensor,
         tgt_points_c: torch.Tensor,
-        points_list: List[torch.FloatTensor],
-        neighbors_list: List[torch.FloatTensor],
-        subsampling_list: List[torch.FloatTensor],
+        encoder_inputs: Union[Dict[str, Any], List[torch.FloatTensor]],
         overlap_list: List[torch.FloatTensor] = None,
         tgt_points_c_corr: torch.Tensor = None,
         return_dict: bool = True,
@@ -247,18 +264,31 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             timesteps (`torch.FloatTensor` or `float` or `int`): (B,) timesteps
             ref_points_c (`torch.FloatTensor`): (N, 3) reference points
             src_points_c (`torch.FloatTensor`): (M, 3) source points
-            points_list (`List[torch.FloatTensor]`): List of point clouds
-            neighbors_list (`List[torch.FloatTensor]`): List of neighbors
-            subsampling_list (`List[torch.FloatTensor]`): List of subsampling
+            encoder_inputs (`Union[Dict[str, Any], List[torch.FloatTensor]]`): Encoder inputs provided by model_processor.py
             overlap_list (`List[torch.FloatTensor]`): List of overlap
             tgt_points_c (`torch.FloatTensor`): (M, 3) target points, used for infonce loss
             return_dict (`bool`, *optional*, defaults to `True`):
                 Whether or not to return a [`RegTrModelOutput`] instead of a plain tuple.
         """
-        feats = self.proj_in_context(self.backbone(points_list, neighbors_list, subsampling_list)[-1])
-        assert feats.shape[0] == ref_points_c.shape[0] + src_points_c.shape[0]
-        ref_feats, src_feats = torch.split(feats, [ref_points_c.shape[0], src_points_c.shape[0]], dim=0)
-        ref_ov_gt, src_ov_gt = overlap_list[-1][:ref_points_c.shape[0]], overlap_list[-1][ref_points_c.shape[0]:]
+        encoder_type = self.config.encoder.get("type", "sonata")
+        
+        if encoder_type == "kpconv":
+            points_list, neighbors_list, subsampling_list = encoder_inputs
+            ref_feats, src_feats = self.encoder(points_list, neighbors_list, subsampling_list)
+        elif encoder_type == "sonata":
+            ref_data_dict, src_data_dict = encoder_inputs
+            
+            ref_feats = self.proj_in_context(self.encoder(ref_data_dict))
+            src_feats = self.proj_in_context(self.encoder(src_data_dict))
+            
+            assert ref_feats.shape[0] == ref_points_c.shape[0]
+            assert src_feats.shape[0] == src_points_c.shape[0]
+
+        if overlap_list is not None:            
+            ref_ov_gt, src_ov_gt = overlap_list[-1][:ref_points_c.shape[0]], overlap_list[-1][ref_points_c.shape[0]:]
+        else:
+            ref_ov_gt, src_ov_gt = None, None
+        
         ref_points_c = ref_points_c.unsqueeze(0)
         src_points_c = src_points_c.unsqueeze(0)
         tgt_points_c = tgt_points_c.unsqueeze(0)
@@ -368,7 +398,6 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             bce_loss = None
 
         return {'infonce_loss': infonce_loss, 'bce_loss': bce_loss}
-    
     
 
 class BasicTransformerBlock(nn.Module):

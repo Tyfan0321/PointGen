@@ -5,16 +5,18 @@ from src.utils.point_cloud_utils import weighted_svd
 
 
 class DiffusionEvaluator:    
-    def __init__(self, cfg):
+    def __init__(self, cfg, processor=None, noise_scheduler=None):
         self.num_gen_samples = cfg.num_gen_samples
         self.num_inference_steps = cfg.num_inference_steps
         self.inference_type = cfg.inference_type
+        self.processor = processor
+        self.noise_scheduler = noise_scheduler
     
-    def evaluate(self, model, processor, noise_scheduler, dataloader):
+    def evaluate(self, model, dataloader):
         transformer = model
         pipeline = PointGenPipeline(
-            scheduler=noise_scheduler,
-            processor=processor,
+            scheduler=self.noise_scheduler,
+            processor=self.processor,
             transformer=transformer,
             scheduler_type=self.inference_type,
         )

@@ -38,23 +38,14 @@ data:
 scheduler:
   num_train_timesteps: 1000
 
-# 处理器配置
-processor:
-  kpconv_layers: 4
-  voxel_size: 0.025
-  init_radius: 0.0625
-  neighbor_limits: [26, 21, 22, 25]
+encoder_type: sonata
+defaults:
+  - encoder: encoders/${data.dataset_type}/${encoder_type}
 
 # 模型配置
 model:
-  kpconv_layers: 4
-  input_dim: 1
-  init_dim: 64
-  kernel_size: 15
-  init_radius: 0.0625
-  init_sigma: 0.05
+  # 通用参数
   in_dim: 3
-  in_dim_context: 1024
   hidden_dim: 256
   num_attention_heads: 8
   activation_fn: "geglu"
