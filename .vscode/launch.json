@@ -5,12 +5,10 @@
             "name": "Python",
             "type": "debugpy",
             "request": "launch",
-            "program": "/remote-home/ums_tangyufan/PointGen/train_gen.py",
+            "program": "/remote-home/ums_tangyufan/PointGen/train.py",
             "cwd": "/remote-home/ums_tangyufan/PointGen/",
             "console": "integratedTerminal",
             "args": [
-                "--config", "./config/kitti_gen.json",
-                // "--resume", "latest"
             ]
         }
     ]

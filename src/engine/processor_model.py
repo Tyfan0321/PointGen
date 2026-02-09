@@ -75,8 +75,8 @@ class KPConvPointCloudProcessor:
 
 class SonataPointCloudProcessor:
     """Preprocessor for point cloud data used in REGTR generative model with Sonata backbone."""
-    def __init__(self):
-        self.type = "sonata"
+    def __init__(self, type):
+        self.type = type
 
     @torch.no_grad()
     def __call__(self, points, overlap=None):

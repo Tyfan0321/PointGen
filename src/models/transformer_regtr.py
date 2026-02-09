@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from diffusers.utils import BaseOutput
+from diffusers.utils.outputs import BaseOutput
 from diffusers.models.modeling_utils import ModelMixin
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.attention_processor import Attention
@@ -22,9 +22,9 @@ from diffusers.models.normalization import AdaLayerNormZero, AdaLayerNorm, AdaLa
 @dataclass
 class RegTrModelOutput(BaseOutput):
     sample: "torch.Tensor"
-    overlap_gt: "torch.Tensor"
+    overlap_gt: "torch.Tensor" = None
+    extra_loss: Dict[str, "torch.Tensor"] = None
     # overlap_pred: Optional["torch.Tensor"]
-    extra_loss: Dict[str, "torch.Tensor"]
 
 class TimestepProjEmbedding(nn.Module):
     def __init__(self, emb_dim):
@@ -123,7 +123,7 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
     def __init__(
         self,
         # Encoder configuration
-        encoder_config: dict = None,
+        encoder_config: dict,
         # RegDiT specific parameters
         # # Geometric structure embedding parameters
         # sigma_d: float = 0.2,
@@ -247,8 +247,8 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         src_points_c: torch.Tensor,
         tgt_points_c: torch.Tensor,
         encoder_inputs: List,
-        overlap_list: List[torch.FloatTensor] = None,
-        tgt_points_c_corr: torch.Tensor = None,
+        overlap_list: Optional[List[torch.FloatTensor]] = None,
+        tgt_points_c_corr: Optional[torch.Tensor] = None,
         return_dict: bool = True,
         **kwargs
     ) -> Union[Dict[str, torch.Tensor], Tuple]:
@@ -266,15 +266,17 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         """
         if self.encoder_type == "kpconv":
             points_list, neighbors_list, subsampling_list, length_list = encoder_inputs
-            ref_feats, src_feats = self.encoder(points_list, neighbors_list, subsampling_list, length_list)
+            ref_feats_origin, src_feats_origin = self.encoder(points_list, neighbors_list, subsampling_list, length_list)
         elif self.encoder_type == "sonata":
             ref_point, src_point = encoder_inputs
             
-            ref_feats = self.encoder(ref_point)
-            src_feats = self.encoder(src_point)
+            ref_feats_origin = self.encoder(ref_point)
+            src_feats_origin = self.encoder(src_point)
             
-            assert ref_feats.shape[0] == ref_points_c.shape[0]
-            assert src_feats.shape[0] == src_points_c.shape[0]
+            assert ref_feats_origin.shape[0] == ref_points_c.shape[0]
+            assert src_feats_origin.shape[0] == src_points_c.shape[0]
+        else:
+            raise ValueError(f"Unsupported Encoder Type{self.encoder_type}")
 
         if overlap_list is not None:            
             ref_ov_gt, src_ov_gt = overlap_list[-1][:ref_points_c.shape[0]], overlap_list[-1][ref_points_c.shape[0]:]
@@ -284,11 +286,11 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         ref_points_c = ref_points_c.unsqueeze(0)
         src_points_c = src_points_c.unsqueeze(0)
         tgt_points_c = tgt_points_c.unsqueeze(0)
-        ref_feats = ref_feats.unsqueeze(0)
-        src_feats = src_feats.unsqueeze(0)
+        ref_feats_origin = ref_feats_origin.unsqueeze(0)
+        src_feats_origin = src_feats_origin.unsqueeze(0)
 
-        ref_feats = self.proj_in_context(ref_feats)
-        src_feats = self.proj_in_context(src_feats)
+        ref_feats = self.proj_in_context(ref_feats_origin)
+        src_feats = self.proj_in_context(src_feats_origin)
 
         ref_pos_emb = self.pos_emb(ref_points_c)
         src_pos_emb = self.pos_emb(src_points_c)
@@ -335,12 +337,12 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             ref_ov_pred, src_ov_pred = None, None
         
         extra_loss = self.compute_extra_loss(
-            ref_feats, src_feats, ref_points_c, tgt_points_c,
+            ref_feats_origin, src_feats_origin, ref_points_c, tgt_points_c,
             ref_ov_pred, src_ov_pred, ref_ov_gt, src_ov_gt
         )
         
         if not return_dict:
-            return (sample, src_ov_gt, src_ov_pred, extra_loss)
+            return (sample, src_ov_gt, extra_loss)
             
         return RegTrModelOutput(
             sample=sample, 
@@ -510,8 +512,8 @@ class BasicTransformerBlock(nn.Module):
         hidden_states: torch.FloatTensor,
         temb: Optional[torch.LongTensor] = None,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
-        pos_emb: torch.FloatTensor = None,
-        encoder_pos_emb: torch.FloatTensor = None
+        pos_emb: Optional[torch.FloatTensor] = None,
+        encoder_pos_emb: Optional[torch.FloatTensor] = None
     ):
         if temb is not None:
             if self.norm_type == "ada_norm_zero":
@@ -530,7 +532,7 @@ class BasicTransformerBlock(nn.Module):
             attn_output = gate_msa[:, None] * attn_output
         hidden_states = attn_output + hidden_states
 
-        if self.attn2 is not None and encoder_hidden_states is not None:
+        if self.attn2 and self.norm2 and self.norm2_encoder and encoder_hidden_states is not None:
             if temb is not None and self.norm_type == "ada_norm_zero":
                 norm_hidden_states, gate_mca = self.norm2(hidden_states, emb=temb)
             elif temb is not None and self.norm_type == "ada_norm":

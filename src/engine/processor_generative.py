@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 from diffusers.training_utils import compute_density_for_timestep_sampling, compute_loss_weighting_for_sd3
 
-from src.engine.processor_model import create_point_cloud_processor
 from src.utils.point_cloud_utils import apply_transform
 
 
@@ -42,6 +41,8 @@ class DiffusionDataProcessor:
             
             ref_points_c = ref_point_dict["coord"]
             src_points_c = src_point_dict["coord"]
+        else:
+            raise ValueError(f"Unsupported Processor Type{self.processor.type}")
 
         
         tgt_points_c = src_points_c.clone()

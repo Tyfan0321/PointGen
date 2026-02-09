@@ -601,6 +601,7 @@ class PointTransformerV3(PointModule, PyTorchModelHubMixin):
         self.enc_mode = enc_mode
         self.shuffle_orders = shuffle_orders
         self.freeze_encoder = freeze_encoder
+        self.enc_channels = enc_channels
 
         assert self.num_stages == len(stride) + 1
         assert self.num_stages == len(enc_depths)

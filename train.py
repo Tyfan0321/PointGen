@@ -24,15 +24,12 @@ def main(cfg: DictConfig):
     print("Creating DiffusionTrainer...")
     trainer = DiffusionTrainer(cfg)
     
-    print("Preparing data and model...")
-    trainer.prepare_data()
-    trainer.prepare_model()
-    
-    trainer.model, trainer.optimizer, trainer.lr_scheduler, ddp_train_loader, ddp_val_loader = trainer.accelerator.prepare(
-        trainer.model, trainer.optimizer, trainer.lr_scheduler, trainer.train_loader, trainer.val_loader
-    )
-    
     if args.eval_only:
+        trainer.prepare_data()
+        trainer.prepare_model()
+        trainer.model, trainer.optimizer, trainer.lr_scheduler, ddp_train_loader, ddp_val_loader = trainer.accelerator.prepare(
+            trainer.model, trainer.optimizer, trainer.lr_scheduler, trainer.train_loader, trainer.val_loader
+        )
         print("Running evaluation only...")
         if args.resume:
             trainer.accelerator.load_state(args.resume)

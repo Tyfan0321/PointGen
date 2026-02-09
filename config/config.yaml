@@ -1,11 +1,11 @@
 # 实验名称
-experiment_name: "pointgen_experiment"
+experiment_name: pointgen_experiment
 
 # 基础配置
 seed: 1
-runname: "3dmatch"
+runname: 3dmatch
 num_workers: 8
-train_batch_size: 32
+train_batch_size: 2
 gradient_accumulation_steps: 4
 num_train_epochs: 200
 num_train_steps: null
@@ -13,22 +13,21 @@ log_steps: 1
 ckpt_epochs: 5
 val_epochs: 1
 clip_grad_norm: 1.0
-feat_stop_epoch: 10
+feat_stop_epoch: 0
 do_gen: true
 num_gen_samples: 10
 num_inference_steps: 5
-inference_type: "fm-euler"
+inference_type: fm-euler
 
 # 输出配置
-output_dir: "./result/v2_3dmatch_without_decay_orign_x_pred_v_loss_aug_10epoch_wo_noised_pe_cat_silu/"
-logging_dir: "logs"
-log_with: "tensorboard"
+output_dir: ./outputs/${experiment_name}/${runname}/${now:%Y-%m-%d}
+log_with: tensorboard
 # 混合精度训练配置
-# 可选值: "no", "fp16", "bf16"
-# "fp16": 适用于大多数GPU，内存使用减少约一半，训练速度提升
-# "bf16": 适用于新GPU (A100, RTX 3090等)，精度更高
-# "no": 禁用混合精度训练
-mixed_precision: "no"
+mixed_precision: 'fp16' # ['no', 'fp16', 'bf16']
+
+hydra:
+  run:
+    dir: ./outputs/${experiment_name}/${runname}/${now:%Y-%m-%d}
 
 # 噪声调度器配置
 scheduler:
@@ -37,15 +36,15 @@ scheduler:
 
 data:
   dataset_type: 3dmatch
-  root: "/remote-home/share/datasets/3DMatch/raw_data"
-  data_list: "./data/3dmatch_list/"
-  npoints: 30000
+  root: /remote-home/share/datasets/3DMatch/raw_data
+  data_list: ./data/3dmatch_list/
+  npoints: 20000
   voxel_size: 0.025
   augment: 1.0
 
 defaults:
   - _self_
-  - encoder: 3dmatch/kpconv
+  - encoder: 3dmatch/sonata
 
 # 模型配置
 model:
@@ -53,9 +52,9 @@ model:
   in_dim: 3
   hidden_dim: 256
   num_attention_heads: 8
-  activation_fn: "geglu"
+  activation_fn: geglu
   num_layers: 6
-  norm_type: "ada_norm_zero"
+  norm_type: ada_norm_zero
   scale: null
 
 # 优化器配置
@@ -68,13 +67,12 @@ optim:
 
 # 学习率调度器配置
 lr_scheduler:
-  name: "cosine"
+  name: cosine
   lr_warmup_steps: 1000
   lr_num_cycles: 0.5
 
 # 损失配置
 loss:
-  learn_w: true
   r_p: 0.05
   r_n: 0.06
 
@@ -85,6 +83,6 @@ eval:
 
 # 扩散模型配置
 diffusion:
-  weighting_scheme: "logit_normal"
+  weighting_scheme: logit_normal
   logit_mean: 0.0
   logit_std: 1.0

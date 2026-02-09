@@ -67,7 +67,7 @@ class SonataEncoder(torch.nn.Module):
                 param.requires_grad = False
         
         base_channels = self.model.enc_channels[-1]
-        self.out_channels = base_channels * 3  
+        self.out_channels = base_channels 
 
         # default transform pipeline
         from src.models.sonata import transform
@@ -76,13 +76,13 @@ class SonataEncoder(torch.nn.Module):
     def forward(self, point):
         for key in point.keys():
             if isinstance(point[key], torch.Tensor):
-                point[key] = point[key].numpy()
+                point[key] = point[key].cpu().numpy()
         point = self.transform(point)
 
         with torch.inference_mode():
             for key in point.keys():
                 if isinstance(point[key], torch.Tensor):
-                    point[key] = torch.from_numpy(point[key]).cuda(non_blocking=True)
+                    point[key] = point[key].cuda(non_blocking=True)
             
             point = self.model(point)
             
@@ -91,7 +91,7 @@ class SonataEncoder(torch.nn.Module):
                     break
                 parent = point.pop("pooling_parent")
                 inverse = point.pop("pooling_inverse")
-                parent.feat = torch.cat([parent.feat, point.feat[inverse]], dim=-1)
+                parent.feat = point.feat[inverse]
                 point = parent
             
             while "pooling_parent" in point:
@@ -101,6 +101,6 @@ class SonataEncoder(torch.nn.Module):
                 point = parent
             
             feats = point.feat[point.inverse]
-        
-        return feats
+        # print(feats.shape)
+        return feats.clone()
 

@@ -87,15 +87,17 @@ class DiffusionTrainer(BaseTrainer):
         model_output = self.model(**train_data_dict)
         
         loss_dict = self.data_processor.compute_loss(model_output, train_data_dict, current_epoch, self.feat_stop_epoch)
-        
+
         self.accelerator.backward(loss_dict["overall_loss"])
+
+        grad_norm = None
         if self.accelerator.sync_gradients:
-            self.accelerator.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
+            grad_norm = self.accelerator.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
             self.optimizer.step()
             self.lr_scheduler.step()
             self.optimizer.zero_grad()
         
-        return loss_dict
+        return loss_dict, grad_norm
     
     def val_step(self, data_dict):
         val_data_dict = self.data_processor.prepare_noisy_data(data_dict)
@@ -133,13 +135,7 @@ class DiffusionTrainer(BaseTrainer):
             self.logger.info(f"Epoch {epoch + 1}, Validation Loss: {global_loss.item():.4f}")
             self.accelerator.log(val_log, step=epoch + 1)
             
-            with open(self.log_file, 'a') as f:
-                f.write(f"Validation,Epoch {epoch+1},Loss: {global_loss.item():.4f},InfoNCE Loss: {global_infonce_loss.item():.4f}\n")
-            
             if self.do_gen:
                 gen_log = self.evaluator.evaluate(self.model, val_loader)
                 self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
                 self.accelerator.log(gen_log, step=epoch + 1)
-
-                with open(self.log_file, 'a') as f:
-                    f.write(f"Generation,Epoch {epoch+1},{gen_log}\n")

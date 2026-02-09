@@ -17,12 +17,10 @@ class BaseTrainer(ABC):
     def __init__(self, cfg):
         self.cfg = cfg
         self.output_dir = cfg.output_dir
-        self.logging_dir = os.path.join(self.output_dir, cfg.logging_dir)
+        self.logging_dir = os.path.join(self.output_dir, cfg.log_with)
         
         os.makedirs(self.output_dir, exist_ok=True)
         os.makedirs(self.logging_dir, exist_ok=True)
-        
-        save_config_snapshot(cfg, self.output_dir)
         
         if cfg.seed is not None:
             set_seed(cfg.seed)
@@ -38,13 +36,6 @@ class BaseTrainer(ABC):
         )
         
         self.logger = get_logger("BaseTrainer")
-        
-        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.log_file = os.path.join(self.output_dir, f"log_{date_str}.txt")
-        if self.accelerator.is_main_process:
-            with open(self.log_file, 'w') as f:
-                f.write(f"Training started at: {datetime.datetime.now()}\n")
-                f.write("Step,Epoch,Loss,InfoNCE Loss,LR,Grad Norm\n")
         
         self.gradient_accumulation_steps = cfg.gradient_accumulation_steps
         self.train_batch_size = cfg.train_batch_size
@@ -84,7 +75,7 @@ class BaseTrainer(ABC):
     
     def fit(self, resume_from_checkpoint=None):
         now = datetime.datetime.now()
-        project_name = f"{self.cfg.experiment_name}_{now.strftime('%Y-%m-%d_%H-%M-%S')}"
+        project_name = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}"
         if self.accelerator.is_main_process:
             self.accelerator.init_trackers(project_name)
         
@@ -105,11 +96,10 @@ class BaseTrainer(ABC):
             with tqdm(ddp_train_loader, desc=f"Epoch {epoch+1}/{self.num_train_epochs}", unit="step", disable=not self.accelerator.is_main_process) as pbar:
                 for step, data_dict in enumerate(pbar):
                     with self.accelerator.accumulate(self.model):
-                        loss_dict = self.train_step(data_dict, current_epoch=epoch)
+                        loss_dict, grad_norm = self.train_step(data_dict, current_epoch=epoch)
                     
                     if self.accelerator.sync_gradients:
                         global_step += 1
-                        grad_norm = self.accelerator.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
                         logs = {**loss_dict, "lr": self.lr_scheduler.get_last_lr()[0], "grad_norm": grad_norm}
                         if global_step % self.log_steps == 0 and self.accelerator.is_main_process:
                             self.accelerator.log(logs, step=global_step)
@@ -118,8 +108,6 @@ class BaseTrainer(ABC):
                                 "infonce_loss": f"{loss_dict.get('infonce_loss', 0):.4f}",
                                 "grad_norm": f"{grad_norm:.4f}"
                             })
-                            with open(self.log_file, 'a') as f:
-                                f.write(f"{global_step},{epoch+1},{loss_dict.get('loss', 0):.4f},{loss_dict.get('infonce_loss', 0):.4f},{self.lr_scheduler.get_last_lr()[0]:.6f},{grad_norm:.4f}\n")
                     
                     epoch_loss += loss_dict.get('loss', 0)
                     epoch_steps += 1
@@ -141,6 +129,6 @@ class BaseTrainer(ABC):
     
     def save_checkpoint(self, epoch):
         if self.accelerator.is_main_process:
-            save_path = os.path.join(self.output_dir, f"checkpoint-epoch-{epoch}")
+            save_path = os.path.join(self.output_dir, "ckpt", f"epoch-{epoch}")
             self.accelerator.save_state(save_path)
             self.logger.info(f"Saved state to {save_path}")
