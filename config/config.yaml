@@ -23,25 +23,29 @@ inference_type: "fm-euler"
 output_dir: "./result/v2_3dmatch_without_decay_orign_x_pred_v_loss_aug_10epoch_wo_noised_pe_cat_silu/"
 logging_dir: "logs"
 log_with: "tensorboard"
+# 混合精度训练配置
+# 可选值: "no", "fp16", "bf16"
+# "fp16": 适用于大多数GPU，内存使用减少约一半，训练速度提升
+# "bf16": 适用于新GPU (A100, RTX 3090等)，精度更高
+# "no": 禁用混合精度训练
 mixed_precision: "no"
 
-# 数据配置
+# 噪声调度器配置
+scheduler:
+  num_train_timesteps: 1000
+
+
 data:
-  dataset_type: "3dmatch"
+  dataset_type: 3dmatch
   root: "/remote-home/share/datasets/3DMatch/raw_data"
   data_list: "./data/3dmatch_list/"
   npoints: 30000
   voxel_size: 0.025
   augment: 1.0
 
-# 噪声调度器配置
-scheduler:
-  num_train_timesteps: 1000
-
-encoder_type: sonata
 defaults:
   - _self_
-  - encoder: encoders/${data.dataset_type}/${encoder_type}
+  - encoder: 3dmatch/kpconv
 
 # 模型配置
 model:

@@ -1,2 +1,2 @@
-from .base_trainer import BaseTrainer
-from .diffusion_trainer import DiffusionTrainer
+from .trainer_base import BaseTrainer
+from .trainer_generative import DiffusionTrainer

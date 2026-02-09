@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from diffusers.training_utils import compute_density_for_timestep_sampling, compute_loss_weighting_for_sd3
 
-from src.engine.model_processor import create_point_cloud_processor
+from src.engine.processor_model import create_point_cloud_processor
 from src.utils.point_cloud_utils import apply_transform
 
 

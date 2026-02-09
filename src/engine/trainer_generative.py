@@ -4,12 +4,12 @@ import torch.optim as optim
 from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.optimization import get_scheduler
 
-from src.engine.base_trainer import BaseTrainer
-from src.engine.data_processor import DiffusionDataProcessor
-from src.engine.evaluator import DiffusionEvaluator
 from src.data.dataset_factory import DatasetFactory
 from src.models.transformer_regtr import RegTrGenerative
-from src.engine.model_processor import create_point_cloud_processor
+from src.engine.trainer_base import BaseTrainer
+from src.engine.processor_generative import DiffusionDataProcessor
+from src.engine.processor_model import create_point_cloud_processor
+from src.engine.evaluator import DiffusionEvaluator
 
 
 class DiffusionTrainer(BaseTrainer):
@@ -133,7 +133,13 @@ class DiffusionTrainer(BaseTrainer):
             self.logger.info(f"Epoch {epoch + 1}, Validation Loss: {global_loss.item():.4f}")
             self.accelerator.log(val_log, step=epoch + 1)
             
+            with open(self.log_file, 'a') as f:
+                f.write(f"Validation,Epoch {epoch+1},Loss: {global_loss.item():.4f},InfoNCE Loss: {global_infonce_loss.item():.4f}\n")
+            
             if self.do_gen:
                 gen_log = self.evaluator.evaluate(self.model, val_loader)
                 self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
                 self.accelerator.log(gen_log, step=epoch + 1)
+
+                with open(self.log_file, 'a') as f:
+                    f.write(f"Generation,Epoch {epoch+1},{gen_log}\n")

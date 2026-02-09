@@ -8,6 +8,7 @@ import torch
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import DistributedDataParallelKwargs, ProjectConfiguration, set_seed
+from tqdm import tqdm
 
 from src.utils.config_utils import save_config_snapshot
 
@@ -37,6 +38,13 @@ class BaseTrainer(ABC):
         )
         
         self.logger = get_logger("BaseTrainer")
+        
+        date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_file = os.path.join(self.output_dir, f"log_{date_str}.txt")
+        if self.accelerator.is_main_process:
+            with open(self.log_file, 'w') as f:
+                f.write(f"Training started at: {datetime.datetime.now()}\n")
+                f.write("Step,Epoch,Loss,InfoNCE Loss,LR,Grad Norm\n")
         
         self.gradient_accumulation_steps = cfg.gradient_accumulation_steps
         self.train_batch_size = cfg.train_batch_size
@@ -89,17 +97,36 @@ class BaseTrainer(ABC):
         )
         
         global_step = 0
-        for epoch in range(self.num_train_epochs):
+        for epoch in tqdm(range(self.num_train_epochs), desc="Epochs", unit="epoch", disable=not self.accelerator.is_main_process):
             self.model.train()
-            for step, data_dict in enumerate(ddp_train_loader):
-                with self.accelerator.accumulate(self.model):
-                    loss_dict = self.train_step(data_dict, current_epoch=epoch)
-                
-                if self.accelerator.sync_gradients:
-                    global_step += 1
-                    logs = {**loss_dict, "lr": self.lr_scheduler.get_last_lr()[0]}
-                    if global_step % self.log_steps == 0 and self.accelerator.is_main_process:
-                        self.accelerator.log(logs, step=global_step)
+            epoch_loss = 0.0
+            epoch_steps = 0
+            
+            with tqdm(ddp_train_loader, desc=f"Epoch {epoch+1}/{self.num_train_epochs}", unit="step", disable=not self.accelerator.is_main_process) as pbar:
+                for step, data_dict in enumerate(pbar):
+                    with self.accelerator.accumulate(self.model):
+                        loss_dict = self.train_step(data_dict, current_epoch=epoch)
+                    
+                    if self.accelerator.sync_gradients:
+                        global_step += 1
+                        grad_norm = self.accelerator.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
+                        logs = {**loss_dict, "lr": self.lr_scheduler.get_last_lr()[0], "grad_norm": grad_norm}
+                        if global_step % self.log_steps == 0 and self.accelerator.is_main_process:
+                            self.accelerator.log(logs, step=global_step)
+                            pbar.set_postfix({
+                                "loss": f"{loss_dict.get('loss', 0):.4f}",
+                                "infonce_loss": f"{loss_dict.get('infonce_loss', 0):.4f}",
+                                "grad_norm": f"{grad_norm:.4f}"
+                            })
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"{global_step},{epoch+1},{loss_dict.get('loss', 0):.4f},{loss_dict.get('infonce_loss', 0):.4f},{self.lr_scheduler.get_last_lr()[0]:.6f},{grad_norm:.4f}\n")
+                    
+                    epoch_loss += loss_dict.get('loss', 0)
+                    epoch_steps += 1
+            
+            if self.accelerator.is_main_process:
+                avg_epoch_loss = epoch_loss / epoch_steps if epoch_steps > 0 else 0
+                self.logger.info(f"Epoch {epoch+1} completed. Average loss: {avg_epoch_loss:.4f}")
             
             if (epoch + 1) % self.val_epochs == 0 or epoch == self.num_train_epochs - 1:
                 self.validate(ddp_val_loader, epoch)

@@ -197,11 +197,6 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
 
         
         # Extra Loss
-        if learn_w:
-            self.W = nn.Parameter(torch.zeros(hidden_dim, hidden_dim), requires_grad=True)
-            nn.init.normal_(self.W, std=0.1)
-        else:
-            self.W = nn.Parameter(torch.eye(hidden_dim), requires_grad=False)
         self.r_p = r_p
         self.r_n = r_n
 
@@ -353,7 +348,40 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             extra_loss=extra_loss,
             # overlap_pred=src_ov_pred,
         )
+    
     def compute_extra_loss(
+        self, 
+        ref_feats, 
+        src_feats, 
+        ref_points, 
+        tgt_points, 
+        ref_ov_pred=None,
+        src_ov_pred=None,
+        ref_ov_gt=None,
+        src_ov_gt=None,
+        dual_normalization=False,
+    ):
+        encoder_frozen = False
+        try:
+            encoder_frozen = all(not param.requires_grad for param in self.encoder.parameters())
+        except:
+            pass
+        
+        if encoder_frozen:
+            with torch.no_grad():
+                return self._compute_extra_loss_impl(
+                    ref_feats, src_feats, ref_points, tgt_points, 
+                    ref_ov_pred, src_ov_pred, ref_ov_gt, src_ov_gt, 
+                    dual_normalization
+                )
+        else:
+            return self._compute_extra_loss_impl(
+                ref_feats, src_feats, ref_points, tgt_points, 
+                ref_ov_pred, src_ov_pred, ref_ov_gt, src_ov_gt, 
+                dual_normalization
+            )
+    
+    def _compute_extra_loss_impl(
         self, 
         ref_feats, 
         src_feats, 
@@ -367,11 +395,8 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
     ):
         ref_feats = F.normalize(ref_feats, p=2, dim=-1)
         src_feats = F.normalize(src_feats, p=2, dim=-1)
-        
-        W_triu = torch.triu(self.W)
-        W_symmetrical = W_triu + W_triu.T
 
-        match_logits = torch.einsum('...ic,cd,...jd->...ij', ref_feats, W_symmetrical, src_feats)
+        match_logits = torch.einsum('...ic,...jc->...ij', ref_feats, src_feats)
         match_logits /= 0.1 
         with torch.no_grad():
             dist_keypts = torch.cdist(ref_points, tgt_points)

@@ -1,9 +1,9 @@
 import hydra
 from omegaconf import DictConfig
-from src.engine.diffusion_trainer import DiffusionTrainer
+from src.engine import DiffusionTrainer
 
 
-@hydra.main(version_base=None, config_path="./config", config_name="config_copy")
+@hydra.main(version_base=None, config_path="./config", config_name="config")
 def main(cfg: DictConfig):
     # 添加 resume 和 eval_only 参数
     import argparse
