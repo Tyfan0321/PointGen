@@ -31,6 +31,8 @@ class DiffusionDataProcessor:
             points_list, neighbors_list, subsampling_list, length_list, overlap_list = processor_output
             ref_points_c = points_list[-1][:length_list[-1][0]]
             src_points_c = points_list[-1][length_list[-1][0]:]
+            encoder_inputs = [points_list, neighbors_list, subsampling_list, length_list]
+
         elif self.processor.type == "sonata":
             points_list, overlap_list = self.processor(
                 [ref_points[0], src_points[0]], 
@@ -41,6 +43,9 @@ class DiffusionDataProcessor:
             
             ref_points_c = ref_point_dict["coord"]
             src_points_c = src_point_dict["coord"]
+
+            encoder_inputs = [ref_point_dict, src_point_dict]
+
         else:
             raise ValueError(f"Unsupported Processor Type{self.processor.type}")
 
@@ -65,11 +70,6 @@ class DiffusionDataProcessor:
         sigmas = self.get_sigmas(timesteps, target.ndim, target.dtype)
         
         sample = sigmas * noise + (1.0 - sigmas) * target
-        
-        if self.processor.type == "kpconv":
-            encoder_inputs = [points_list, neighbors_list, subsampling_list, length_list]
-        elif self.processor.type == "sonata":   
-            encoder_inputs = [ref_point_dict, src_point_dict]
         
         return {
             "sample": sample,

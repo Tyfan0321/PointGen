@@ -416,34 +416,51 @@ class GridPooling(PointModule):
             self.act = PointSequential(act_layer())
 
     def forward(self, point: Point):
-        if "grid_coord" in point.keys():
-            grid_coord = point.grid_coord
-        elif {"coord", "grid_size"}.issubset(point.keys()):
-            grid_coord = torch.div(
-                point.coord - point.coord.min(0)[0],
-                point.grid_size,
-                rounding_mode="trunc",
-            ).int()
+        cache = None
+        if "context" in point.keys():
+            context = point.context
+            if isinstance(context, dict) and "pooling_cache" in context:
+                cache = context["pooling_cache"]
+        stage_cache = None
+        if isinstance(cache, dict) and "stages" in cache:
+            cursor = cache.get("cursor", 0)
+            stages = cache["stages"]
+            if cursor < len(stages):
+                stage_cache = stages[cursor]
+                cache["cursor"] = cursor + 1
+
+        if stage_cache is not None:
+            grid_coord = stage_cache["grid_coord"]
+            cluster = stage_cache["cluster"]
+            indices = stage_cache["indices"]
+            idx_ptr = stage_cache["idx_ptr"]
+            head_indices = stage_cache["head_indices"]
         else:
-            raise AssertionError(
-                "[gird_coord] or [coord, grid_size] should be include in the Point"
+            if "grid_coord" in point.keys():
+                grid_coord = point.grid_coord
+            elif {"coord", "grid_size"}.issubset(point.keys()):
+                grid_coord = torch.div(
+                    point.coord - point.coord.min(0)[0],
+                    point.grid_size,
+                    rounding_mode="trunc",
+                ).int()
+            else:
+                raise AssertionError(
+                    "[gird_coord] or [coord, grid_size] should be include in the Point"
+                )
+            grid_coord = torch.div(grid_coord, self.stride, rounding_mode="trunc")
+            grid_coord = grid_coord | point.batch.view(-1, 1) << 48
+            grid_coord, cluster, counts = torch.unique(
+                grid_coord,
+                sorted=True,
+                return_inverse=True,
+                return_counts=True,
+                dim=0,
             )
-        grid_coord = torch.div(grid_coord, self.stride, rounding_mode="trunc")
-        grid_coord = grid_coord | point.batch.view(-1, 1) << 48
-        grid_coord, cluster, counts = torch.unique(
-            grid_coord,
-            sorted=True,
-            return_inverse=True,
-            return_counts=True,
-            dim=0,
-        )
-        grid_coord = grid_coord & ((1 << 48) - 1)
-        # indices of point sorted by cluster, for torch_scatter.segment_csr
-        _, indices = torch.sort(cluster)
-        # index pointer for sorted point, for torch_scatter.segment_csr
-        idx_ptr = torch.cat([counts.new_zeros(1), torch.cumsum(counts, dim=0)])
-        # head_indices of each cluster, for reduce attr e.g. code, batch
-        head_indices = indices[idx_ptr[:-1]]
+            grid_coord = grid_coord & ((1 << 48) - 1)
+            _, indices = torch.sort(cluster)
+            idx_ptr = torch.cat([counts.new_zeros(1), torch.cumsum(counts, dim=0)])
+            head_indices = indices[idx_ptr[:-1]]
         point_dict = Dict(
             feat=torch_scatter.segment_csr(
                 self.proj(point.feat)[indices], idx_ptr, reduce=self.reduce

@@ -73,34 +73,50 @@ class SonataEncoder(torch.nn.Module):
         from src.models.sonata import transform
         self.transform = transform.default()
     
-    def forward(self, point):
-        for key in point.keys():
-            if isinstance(point[key], torch.Tensor):
-                point[key] = point[key].cpu().numpy()
-        point = self.transform(point)
-
-        with torch.inference_mode():
+    def forward(self, point, return_layers=True):
+        if not isinstance(point, dict) or "feat" not in point:
             for key in point.keys():
                 if isinstance(point[key], torch.Tensor):
-                    point[key] = point[key].cuda(non_blocking=True)
-            
+                    point[key] = point[key].cpu().numpy()
+            point = self.transform(point)
+
+        def _to_device(value, device):
+            if isinstance(value, torch.Tensor):
+                return value.to(device, non_blocking=True)
+            if isinstance(value, dict):
+                return {k: _to_device(v, device) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_to_device(v, device) for v in value]
+            return value
+
+        device = next(self.model.parameters()).device
+        with torch.inference_mode():
+            point = _to_device(point, device)
             point = self.model(point)
-            
-            for _ in range(2):
-                if "pooling_parent" not in point:
+
+            layers = []
+            current = point
+            while True:
+                coord = current.coord if "coord" in current else current.get("origin_coord", None)
+                layers.append({"coord": coord, "feat": current.feat})
+                if "pooling_parent" not in current:
                     break
-                parent = point.pop("pooling_parent")
-                inverse = point.pop("pooling_inverse")
-                parent.feat = point.feat[inverse]
-                point = parent
+                current = current.pooling_parent
+
+            # for _ in range(2):
+            #     if "pooling_parent" not in point:
+            #         break
+            #     parent = point.pop("pooling_parent")
+            #     inverse = point.pop("pooling_inverse")
+            #     parent.feat = torch.cat([parent.feat, point.feat[inverse]], dim=-1)
+            #     point = parent
             
-            while "pooling_parent" in point:
-                parent = point.pop("pooling_parent")
-                inverse = point.pop("pooling_inverse")
-                parent.feat = point.feat[inverse]
-                point = parent
+            # while "pooling_parent" in point:
+            #     parent = point.pop("pooling_parent")
+            #     inverse = point.pop("pooling_inverse")
+            #     parent.feat = point.feat[inverse]
+            #     point = parent
             
-            feats = point.feat[point.inverse]
-        # print(feats.shape)
-        return feats.clone()
+            # _ = point.feat[point.inverse]       
+        return layers
 

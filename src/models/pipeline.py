@@ -109,21 +109,23 @@ class PointGenPipeline(DiffusionPipeline):
         ref_overlap = data_dict.get("ref_overlap", None)
         src_overlap = data_dict.get("src_overlap", None)
 
+        model_type = next(self.transformer.parameters()).dtype
+
         processor_output = self.processor(
             [ref_points[0], src_points[0]], [ref_overlap[0], src_overlap[0]] if ref_overlap is not None else None
         )
         processor_type = self.processor.type
         if processor_type == "kpconv":
             points_list, neighbors_list, subsampling_list, length_list, overlap_list = processor_output
-            ref_points_c = points_list[-1][:length_list[-1][0]].to(dtype=self.transformer.dtype)
-            src_points_c = points_list[-1][length_list[-1][0]:].to(dtype=self.transformer.dtype)
+            ref_points_c = points_list[-1][:length_list[-1][0]].to(dtype=model_type)
+            src_points_c = points_list[-1][length_list[-1][0]:].to(dtype=model_type)
             encoder_inputs = (points_list, neighbors_list, subsampling_list)
         elif processor_type == "sonata":
             points_list, overlap_list = processor_output
             ref_data_dict = points_list[0]
             src_data_dict = points_list[1]
-            ref_points_c = ref_data_dict["coord"].to(dtype=self.transformer.dtype)
-            src_points_c = src_data_dict["coord"].to(dtype=self.transformer.dtype)
+            ref_points_c = ref_data_dict["coord"].to(dtype=model_type)
+            src_points_c = src_data_dict["coord"].to(dtype=model_type)
             
             encoder_inputs = [ref_data_dict, src_data_dict]
 
@@ -161,11 +163,13 @@ class PointGenPipeline(DiffusionPipeline):
         model_data_dict = self.prepare_data(data_dict)
         length, num_channels = model_data_dict["src_points_c"].shape
 
+        model_type = next(self.transformer.parameters()).dtype
+
         sample = self.prepare_sample(
             batch_size=1,
             num_channels=num_channels,
             length=length,
-            dtype=self.transformer.dtype,
+            dtype=model_type,
             device=device,
             generator=generator
         )

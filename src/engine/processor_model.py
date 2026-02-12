@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 
 from src.utils.point_cloud_utils import grid_subsample_gpu, radius_search_gpu
+from src.models.sonata import transform as sonata_transform
+from src.models.sonata.utils import offset2batch
+import torch_scatter
 
 
 class KPConvPointCloudProcessor:
@@ -75,8 +78,11 @@ class KPConvPointCloudProcessor:
 
 class SonataPointCloudProcessor:
     """Preprocessor for point cloud data used in REGTR generative model with Sonata backbone."""
-    def __init__(self, type):
+    def __init__(self, type, stride=(2, 2, 2, 2), build_pooling_cache=True):
         self.type = type
+        self.stride = stride
+        self.build_pooling_cache = build_pooling_cache
+        self.transform = sonata_transform.default()
 
     @torch.no_grad()
     def __call__(self, points, overlap=None):
@@ -100,9 +106,68 @@ class SonataPointCloudProcessor:
                 "color": point_cloud.new_zeros(point_cloud.shape[0], 3),
                 "normal": point_cloud.new_zeros(point_cloud.shape[0], 3),
             }
-            points_list.append(point)
+            point_numpy = {}
+            for key, value in point.items():
+                if isinstance(value, torch.Tensor):
+                    point_numpy[key] = value.cpu().numpy()
+                else:
+                    point_numpy[key] = value
+
+            sonata_point = self.transform(point_numpy)
+            if self.build_pooling_cache:
+                context = sonata_point.get("context", {})
+                context["pooling_cache"] = self._build_pooling_cache(sonata_point)
+                sonata_point["context"] = context
+
+            points_list.append(sonata_point)
         
         return points_list, overlap_list
+
+    def _build_pooling_cache(self, point):
+        grid_coord = point["grid_coord"]
+        coord = point["coord"]
+        batch = point.get("batch", None)
+        if batch is None:
+            batch = offset2batch(point["offset"])
+
+        stages = []
+        pyramid = [{"coord": coord, "grid_coord": grid_coord, "batch": batch}]
+
+        for stride in self.stride:
+            grid_coord_down = torch.div(grid_coord, stride, rounding_mode="trunc")
+            grid_key = grid_coord_down | (batch.view(-1, 1) << 48)
+            unique, cluster, counts = torch.unique(
+                grid_key,
+                sorted=True,
+                return_inverse=True,
+                return_counts=True,
+                dim=0,
+            )
+            indices = torch.argsort(cluster)
+            idx_ptr = torch.cat([counts.new_zeros(1), torch.cumsum(counts, dim=0)])
+            head_indices = indices[idx_ptr[:-1]]
+
+            coord_down = torch_scatter.segment_csr(coord[indices], idx_ptr, reduce="mean")
+            batch_down = batch[head_indices]
+            grid_coord_unique = unique & ((1 << 48) - 1)
+
+            stages.append(
+                {
+                    "stride": stride,
+                    "grid_coord": grid_coord_unique,
+                    "cluster": cluster,
+                    "indices": indices,
+                    "idx_ptr": idx_ptr,
+                    "head_indices": head_indices,
+                }
+            )
+            pyramid.append({"coord": coord_down, "grid_coord": grid_coord_unique, "batch": batch_down})
+
+            coord = coord_down
+            grid_coord = grid_coord_unique
+            batch = batch_down
+
+        return {"stages": stages, "pyramid": pyramid, "cursor": 0}
 
 
 def create_point_cloud_processor(processor_type, **kwargs):
