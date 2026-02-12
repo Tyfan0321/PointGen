@@ -120,22 +120,27 @@ class DiffusionDataProcessor:
             (weighting.float() * (v_pred.float() - v.float()) ** 2).reshape(target.shape[0], -1),
             dim=1,
         ).mean()
-        
-        infonce_loss = model_output.extra_loss["infonce_loss"]
-        bce_loss = model_output.extra_loss["bce_loss"]
-        
-        if bce_loss:
-            extra_loss = infonce_loss + bce_loss
-        else:
-            extra_loss = infonce_loss
-        
-        if current_epoch < feat_stop_epoch:
-            overall_loss = loss + extra_loss.float()
-        else:
-            overall_loss = loss
-        
+
         return {
             "loss": loss.detach().item(),
-            "infonce_loss": infonce_loss.detach().item(),
-            "overall_loss": overall_loss
+            "overall_loss": loss
         }
+        
+        # infonce_loss = model_output.extra_loss["infonce_loss"]
+        # bce_loss = model_output.extra_loss["bce_loss"]
+        
+        # if bce_loss:
+        #     extra_loss = infonce_loss + bce_loss
+        # else:
+        #     extra_loss = infonce_loss
+        
+        # if current_epoch < feat_stop_epoch:
+        #     overall_loss = loss + extra_loss.float()
+        # else:
+        #     overall_loss = loss
+        
+        # return {
+        #     "loss": loss.detach().item(),
+        #     "infonce_loss": infonce_loss.detach().item(),
+        #     "overall_loss": overall_loss
+        # }

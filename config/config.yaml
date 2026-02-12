@@ -5,7 +5,7 @@ experiment_name: pointgen_experiment
 seed: 1
 runname: 3dmatch
 num_workers: 8
-train_batch_size: 2
+train_batch_size: 32
 gradient_accumulation_steps: 4
 num_train_epochs: 200
 num_train_steps: null
@@ -38,7 +38,7 @@ data:
   dataset_type: 3dmatch
   root: /remote-home/share/datasets/3DMatch/raw_data
   data_list: ./data/3dmatch_list/
-  npoints: 20000
+  npoints: 30000
   voxel_size: 0.025
   augment: 1.0
 

@@ -341,11 +341,11 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         else:
             ref_ov_pred, src_ov_pred = None, None
         
-        extra_loss = self.compute_extra_loss(
-            ref_feats_origin, src_feats_origin, ref_points_c, tgt_points_c,
-            ref_ov_pred, src_ov_pred, ref_ov_gt, src_ov_gt
-        )
-        
+        # extra_loss = self.compute_extra_loss(
+        #     ref_feats_origin, src_feats_origin, ref_points_c, tgt_points_c,
+        #     ref_ov_pred, src_ov_pred, ref_ov_gt, src_ov_gt
+        # )
+        extra_loss = {}
         if not return_dict:
             return (sample, src_ov_gt, extra_loss)
             

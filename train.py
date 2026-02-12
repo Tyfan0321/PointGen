@@ -5,7 +5,6 @@ from src.engine import DiffusionTrainer
 
 @hydra.main(version_base=None, config_path="./config", config_name="config")
 def main(cfg: DictConfig):
-    # 添加 resume 和 eval_only 参数
     import argparse
     parser = argparse.ArgumentParser(description="PointGen 训练脚本")
     parser.add_argument(

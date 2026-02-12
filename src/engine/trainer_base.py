@@ -105,7 +105,7 @@ class BaseTrainer(ABC):
                             self.accelerator.log(logs, step=global_step)
                             pbar.set_postfix({
                                 "loss": f"{loss_dict.get('loss', 0):.4f}",
-                                "infonce_loss": f"{loss_dict.get('infonce_loss', 0):.4f}",
+                                # "infonce_loss": f"{loss_dict.get('infonce_loss', 0):.4f}",
                                 "grad_norm": f"{grad_norm:.4f}"
                             })
                     
