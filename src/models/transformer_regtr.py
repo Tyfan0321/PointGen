@@ -232,9 +232,10 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         elif self.encoder_type == "sonata":
             from src.models.encoders import SonataEncoder
             return SonataEncoder(
-                pretrained=encoder_config.get("pretrained", True),
-                freeze=encoder_config.get("freeze", True),
-                pretrained_ckpt=encoder_config.get("pretrained_ckpt", None)
+                encoder_config.get("pretrained", True),
+                encoder_config.get("freeze", True),
+                encoder_config.get("pretrained_ckpt", None),
+                encoder_config.get("layer_index", 0)
             )
         else:
             raise ValueError(f"Unsupported encoder type: {self.encoder_type}")
@@ -272,8 +273,10 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
             
             ref_layers = self.encoder(ref_point)
             src_layers = self.encoder(src_point)
-            ref_feats_origin = ref_layers[self.sonata_layer_index]["feat"]
-            src_feats_origin = src_layers[self.sonata_layer_index]["feat"]
+            layer_index = self.encoder.layer_index
+            ref_feats_origin = ref_layers[layer_index]["feat"]
+            src_feats_origin = src_layers[layer_index]["feat"]
+
             
             assert ref_feats_origin.shape[0] == ref_points_c.shape[0]
             assert src_feats_origin.shape[0] == src_points_c.shape[0]

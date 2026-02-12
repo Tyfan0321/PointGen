@@ -115,25 +115,25 @@ class DiffusionTrainer(BaseTrainer):
         total_infonce_loss = torch.tensor(0.0, device=self.accelerator.device)
         num_samples = torch.tensor(0, device=self.accelerator.device)
         
-        for step, data_dict in enumerate(val_loader):
-            val_loss_dict = self.val_step(data_dict)
-            total_loss += val_loss_dict["loss"]
-            total_infonce_loss += val_loss_dict["infonce_loss"]
-            num_samples += 1
+        # for step, data_dict in enumerate(val_loader):
+        #     val_loss_dict = self.val_step(data_dict)
+        #     total_loss += val_loss_dict["loss"]
+        #     total_infonce_loss += val_loss_dict["infonce_loss"]
+        #     num_samples += 1
         
-        gathered_losses = self.accelerator.gather(total_loss)
-        gathered_infonce_loss = self.accelerator.gather(total_infonce_loss)
-        gathered_samples = self.accelerator.gather(num_samples)
+        # gathered_losses = self.accelerator.gather(total_loss)
+        # gathered_infonce_loss = self.accelerator.gather(total_infonce_loss)
+        # gathered_samples = self.accelerator.gather(num_samples)
         
         if self.accelerator.is_main_process:
-            global_loss = gathered_losses.sum() / gathered_samples.sum()
-            global_infonce_loss = gathered_infonce_loss.sum() / gathered_samples.sum()
-            val_log = {
-                "val_loss": global_loss.item(),
-                "val_infonce_loss": global_infonce_loss.item()
-            }
-            self.logger.info(f"Epoch {epoch + 1}, Validation Loss: {global_loss.item():.4f}")
-            self.accelerator.log(val_log, step=epoch + 1)
+            # global_loss = gathered_losses.sum() / gathered_samples.sum()
+            # global_infonce_loss = gathered_infonce_loss.sum() / gathered_samples.sum()
+            # val_log = {
+            #     "val_loss": global_loss.item(),
+            #     "val_infonce_loss": global_infonce_loss.item()
+            # }
+            # self.logger.info(f"Epoch {epoch + 1}, Validation Loss: {global_loss.item():.4f}")
+            # self.accelerator.log(val_log, step=epoch + 1)
             
             if self.do_gen:
                 gen_log = self.evaluator.evaluate(self.model, val_loader)

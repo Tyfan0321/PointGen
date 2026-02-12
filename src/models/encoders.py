@@ -68,6 +68,7 @@ class SonataEncoder(torch.nn.Module):
                 param.requires_grad = False
         
         self.enc_channels = list(self.model.enc_channels)
+        self.layer_index = layer_index
         self.out_channels = self.enc_channels[layer_index]
 
         # default transform pipeline
