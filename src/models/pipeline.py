@@ -124,8 +124,16 @@ class PointGenPipeline(DiffusionPipeline):
             points_list, overlap_list = processor_output
             ref_data_dict = points_list[0]
             src_data_dict = points_list[1]
-            ref_points_c = ref_data_dict["coord"].to(dtype=model_type)
-            src_points_c = src_data_dict["coord"].to(dtype=model_type)
+            layer_index = getattr(self.processor, "layer_index", 0)
+            if "pooling_cache" in ref_data_dict and "pyramid" in ref_data_dict["pooling_cache"]:
+                pyramid_ref = list(reversed(ref_data_dict["pooling_cache"]["pyramid"]))
+                pyramid_src = list(reversed(src_data_dict["pooling_cache"]["pyramid"]))
+                layer_index = min(layer_index, len(pyramid_ref) - 1)
+                ref_points_c = pyramid_ref[layer_index]["coord"].to(dtype=model_type)
+                src_points_c = pyramid_src[layer_index]["coord"].to(dtype=model_type)
+            else:
+                ref_points_c = ref_data_dict["coord"].to(dtype=model_type)
+                src_points_c = src_data_dict["coord"].to(dtype=model_type)
             
             encoder_inputs = [ref_data_dict, src_data_dict]
 

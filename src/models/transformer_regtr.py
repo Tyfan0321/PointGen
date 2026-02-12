@@ -270,8 +270,10 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         elif self.encoder_type == "sonata":
             ref_point, src_point = encoder_inputs
             
-            ref_feats_origin = self.encoder(ref_point)
-            src_feats_origin = self.encoder(src_point)
+            ref_layers = self.encoder(ref_point)
+            src_layers = self.encoder(src_point)
+            ref_feats_origin = ref_layers[self.sonata_layer_index]["feat"]
+            src_feats_origin = src_layers[self.sonata_layer_index]["feat"]
             
             assert ref_feats_origin.shape[0] == ref_points_c.shape[0]
             assert src_feats_origin.shape[0] == src_points_c.shape[0]
@@ -563,5 +565,4 @@ class BasicTransformerBlock(nn.Module):
         hidden_states = ff_output + hidden_states
 
         return hidden_states
-
 

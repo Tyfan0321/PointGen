@@ -40,9 +40,17 @@ class DiffusionDataProcessor:
             )
             ref_point_dict = points_list[0]
             src_point_dict = points_list[1]
-            
-            ref_points_c = ref_point_dict["coord"]
-            src_points_c = src_point_dict["coord"]
+
+            layer_index = getattr(self.processor, "layer_index", 0)
+            if "pooling_cache" in ref_point_dict and "pyramid" in ref_point_dict["pooling_cache"]:
+                pyramid_ref = list(reversed(ref_point_dict["pooling_cache"]["pyramid"]))
+                pyramid_src = list(reversed(src_point_dict["pooling_cache"]["pyramid"]))
+                layer_index = min(layer_index, len(pyramid_ref) - 1)
+                ref_points_c = pyramid_ref[layer_index]["coord"]
+                src_points_c = pyramid_src[layer_index]["coord"]
+            else:
+                ref_points_c = ref_point_dict["coord"]
+                src_points_c = src_point_dict["coord"]
 
             encoder_inputs = [ref_point_dict, src_point_dict]
 

@@ -49,6 +49,7 @@ class SonataEncoder(torch.nn.Module):
         pretrained=True,
         freeze=True,
         pretrained_ckpt=None,
+        layer_index=0,
         **kwargs
     ):
         super().__init__()
@@ -66,14 +67,14 @@ class SonataEncoder(torch.nn.Module):
             for param in self.model.parameters():
                 param.requires_grad = False
         
-        base_channels = self.model.enc_channels[-1]
-        self.out_channels = base_channels 
+        self.enc_channels = list(self.model.enc_channels)
+        self.out_channels = self.enc_channels[layer_index]
 
         # default transform pipeline
         from src.models.sonata import transform
         self.transform = transform.default()
     
-    def forward(self, point, return_layers=True):
+    def forward(self, point):
         assert "feat" in point, "point needs to be processed"
         with torch.inference_mode():
             point = self.model(point)
@@ -103,4 +104,3 @@ class SonataEncoder(torch.nn.Module):
             
             # _ = point.feat[point.inverse]   
         return layers
-

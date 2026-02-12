@@ -6,7 +6,9 @@ encoder:
   pretrained: true
   freeze: true
   pretrained_ckpt: "/remote-home/ums_tangyufan/foundation_models/sonata/sonata_small.pth"
+  layer_index: 2
 
 # Processor configuration
 processor:
   type: "sonata"
+  layer_index: 2

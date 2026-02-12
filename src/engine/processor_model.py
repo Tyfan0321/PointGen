@@ -78,10 +78,11 @@ class KPConvPointCloudProcessor:
 
 class SonataPointCloudProcessor:
     """Preprocessor for point cloud data used in REGTR generative model with Sonata backbone."""
-    def __init__(self, type, stride=(2, 2, 2, 2), build_pooling_cache=True):
+    def __init__(self, type, stride=(2, 2, 2, 2), build_pooling_cache=True, layer_index=0):
         self.type = type
         self.stride = stride
         self.build_pooling_cache = build_pooling_cache
+        self.layer_index = layer_index
         self.transform = sonata_transform.default()
 
     def _to_device(self, value, device):
