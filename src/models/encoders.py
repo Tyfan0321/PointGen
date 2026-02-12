@@ -74,24 +74,8 @@ class SonataEncoder(torch.nn.Module):
         self.transform = transform.default()
     
     def forward(self, point, return_layers=True):
-        if not isinstance(point, dict) or "feat" not in point:
-            for key in point.keys():
-                if isinstance(point[key], torch.Tensor):
-                    point[key] = point[key].cpu().numpy()
-            point = self.transform(point)
-
-        def _to_device(value, device):
-            if isinstance(value, torch.Tensor):
-                return value.to(device, non_blocking=True)
-            if isinstance(value, dict):
-                return {k: _to_device(v, device) for k, v in value.items()}
-            if isinstance(value, list):
-                return [_to_device(v, device) for v in value]
-            return value
-
-        device = next(self.model.parameters()).device
+        assert "feat" in point, "point needs to be processed"
         with torch.inference_mode():
-            point = _to_device(point, device)
             point = self.model(point)
 
             layers = []
@@ -117,6 +101,6 @@ class SonataEncoder(torch.nn.Module):
             #     parent.feat = point.feat[inverse]
             #     point = parent
             
-            # _ = point.feat[point.inverse]       
+            # _ = point.feat[point.inverse]   
         return layers
 

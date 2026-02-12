@@ -84,6 +84,15 @@ class SonataPointCloudProcessor:
         self.build_pooling_cache = build_pooling_cache
         self.transform = sonata_transform.default()
 
+    def _to_device(self, value, device):
+        if isinstance(value, torch.Tensor):
+            return value.to(device, non_blocking=True)
+        if isinstance(value, dict):
+            return {k: self._to_device(v, device) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._to_device(v, device) for v in value]
+        return value
+
     @torch.no_grad()
     def __call__(self, points, overlap=None):
         f"""
@@ -100,6 +109,7 @@ class SonataPointCloudProcessor:
                 overlap_list = [torch.cat(overlap, dim=0).float()]
         
         points_list = []
+        device = points[0].device
         for point_cloud in points:
             point = {
                 "coord": point_cloud,
@@ -115,11 +125,10 @@ class SonataPointCloudProcessor:
 
             sonata_point = self.transform(point_numpy)
             if self.build_pooling_cache:
-                context = sonata_point.get("context", {})
-                context["pooling_cache"] = self._build_pooling_cache(sonata_point)
-                sonata_point["context"] = context
-
+                sonata_point["pooling_cache"] = self._build_pooling_cache(sonata_point)
             points_list.append(sonata_point)
+        
+        points_list = self._to_device(points_list, device)
         
         return points_list, overlap_list
 

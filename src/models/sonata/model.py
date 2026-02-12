@@ -417,10 +417,8 @@ class GridPooling(PointModule):
 
     def forward(self, point: Point):
         cache = None
-        if "context" in point.keys():
-            context = point.context
-            if isinstance(context, dict) and "pooling_cache" in context:
-                cache = context["pooling_cache"]
+        if "pooling_cache" in point.keys():
+            cache = point["pooling_cache"]
         stage_cache = None
         if isinstance(cache, dict) and "stages" in cache:
             cursor = cache.get("cursor", 0)
