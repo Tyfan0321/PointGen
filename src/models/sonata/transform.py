@@ -192,6 +192,7 @@ class CenterShift(object):
             else:
                 shift = [(x_min + x_max) / 2, (y_min + y_max) / 2, 0]
             data_dict["coord"] -= shift
+            data_dict["center_shift"] = shift
         return data_dict
 
 
@@ -1217,7 +1218,7 @@ def default():
         dict(type="ToTensor"),
         dict(
             type="Collect",
-            keys=("coord", "grid_coord", "color", "inverse"),
+            keys=("coord", "grid_coord", "color", "inverse", "center_shift"),
             feat_keys=("coord", "color", "normal"),
         ),
     ]

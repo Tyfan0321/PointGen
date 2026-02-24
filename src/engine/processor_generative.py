@@ -52,6 +52,11 @@ class DiffusionDataProcessor:
                 ref_points_c = ref_point_dict["coord"]
                 src_points_c = src_point_dict["coord"]
 
+            ref_center_shift = ref_point_dict.get("center_shift", torch.zeros(3, device=ref_points_c.device))
+            src_center_shift = src_point_dict.get("center_shift", torch.zeros(3, device=src_points_c.device))
+            ref_points_c = ref_points_c + ref_center_shift
+            src_points_c = src_points_c + src_center_shift
+
             encoder_inputs = [ref_point_dict, src_point_dict]
 
         else:

@@ -135,6 +135,11 @@ class PointGenPipeline(DiffusionPipeline):
                 ref_points_c = ref_data_dict["coord"].to(dtype=model_type)
                 src_points_c = src_data_dict["coord"].to(dtype=model_type)
             
+            ref_center_shift = ref_point_dict.get("center_shift", torch.zeros(3, device=ref_points_c.device))
+            src_center_shift = src_point_dict.get("center_shift", torch.zeros(3, device=src_points_c.device))
+            ref_points_c = ref_points_c + ref_center_shift
+            src_points_c = src_points_c + src_center_shift
+            
             encoder_inputs = [ref_data_dict, src_data_dict]
 
         Tr = data_dict.get("Tr")
