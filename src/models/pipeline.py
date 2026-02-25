@@ -122,25 +122,25 @@ class PointGenPipeline(DiffusionPipeline):
             encoder_inputs = (points_list, neighbors_list, subsampling_list)
         elif processor_type == "sonata":
             points_list, overlap_list = processor_output
-            ref_data_dict = points_list[0]
-            src_data_dict = points_list[1]
+            ref_point_dict = points_list[0]
+            src_point_dict = points_list[1]
             layer_index = getattr(self.processor, "layer_index", 0)
-            if "pooling_cache" in ref_data_dict and "pyramid" in ref_data_dict["pooling_cache"]:
-                pyramid_ref = list(reversed(ref_data_dict["pooling_cache"]["pyramid"]))
-                pyramid_src = list(reversed(src_data_dict["pooling_cache"]["pyramid"]))
+            if "pooling_cache" in ref_point_dict and "pyramid" in ref_point_dict["pooling_cache"]:
+                pyramid_ref = list(reversed(ref_point_dict["pooling_cache"]["pyramid"]))
+                pyramid_src = list(reversed(src_point_dict["pooling_cache"]["pyramid"]))
                 layer_index = min(layer_index, len(pyramid_ref) - 1)
                 ref_points_c = pyramid_ref[layer_index]["coord"].to(dtype=model_type)
                 src_points_c = pyramid_src[layer_index]["coord"].to(dtype=model_type)
             else:
-                ref_points_c = ref_data_dict["coord"].to(dtype=model_type)
-                src_points_c = src_data_dict["coord"].to(dtype=model_type)
+                ref_points_c = ref_point_dict["coord"].to(dtype=model_type)
+                src_points_c = src_point_dict["coord"].to(dtype=model_type)
             
             ref_center_shift = ref_point_dict.get("center_shift", torch.zeros(3, device=ref_points_c.device))
             src_center_shift = src_point_dict.get("center_shift", torch.zeros(3, device=src_points_c.device))
             ref_points_c = ref_points_c + ref_center_shift
             src_points_c = src_points_c + src_center_shift
             
-            encoder_inputs = [ref_data_dict, src_data_dict]
+            encoder_inputs = [ref_point_dict, src_point_dict]
 
         Tr = data_dict.get("Tr")
         tgt_points_c = apply_transform(src_points_c, Tr[0])
