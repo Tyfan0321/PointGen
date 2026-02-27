@@ -114,6 +114,11 @@ class DiffusionTrainer(BaseTrainer):
         total_loss = torch.tensor(0.0, device=self.accelerator.device)
         # total_infonce_loss = torch.tensor(0.0, device=self.accelerator.device)
         num_samples = torch.tensor(0, device=self.accelerator.device)
+
+        if self.do_gen and self.accelerator.is_main_process:
+            gen_log = self.evaluator.evaluate(self.model, val_loader)
+            self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
+            self.accelerator.log(gen_log, step=epoch + 1)
         
         for step, data_dict in enumerate(val_loader):
             val_loss_dict = self.val_step(data_dict)
@@ -134,8 +139,3 @@ class DiffusionTrainer(BaseTrainer):
             }
             self.logger.info(f"Epoch {epoch + 1}, Validation Loss: {global_loss.item():.4f}")
             self.accelerator.log(val_log, step=epoch + 1)
-            
-            if self.do_gen:
-                gen_log = self.evaluator.evaluate(self.model, val_loader)
-                self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
-                self.accelerator.log(gen_log, step=epoch + 1)

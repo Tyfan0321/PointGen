@@ -11,6 +11,7 @@ class DiffusionDataProcessor:
         self.weighting_scheme = cfg.diffusion.weighting_scheme
         self.logit_mean = cfg.diffusion.logit_mean
         self.logit_std = cfg.diffusion.logit_std
+        self.mode_scale = cfg.diffusion.mode_scale
 
         self.processor = processor
         self.noise_scheduler = noise_scheduler
@@ -76,8 +77,10 @@ class DiffusionDataProcessor:
             batch_size=self.train_batch_size,
             logit_mean=self.logit_mean,
             logit_std=self.logit_std,
+            mode_scale=self.mode_scale
         )
         indices = (u * self.noise_scheduler.config.num_train_timesteps).long()
+        indices = indices.clamp(0, self.noise_scheduler.config.num_train_timesteps - 1)
         timesteps = self.noise_scheduler.timesteps[indices].to(device=target.device)
         
         sigmas = self.get_sigmas(timesteps, target.ndim, target.dtype)
@@ -121,10 +124,16 @@ class DiffusionDataProcessor:
         x_pred = model_output.sample
         v_pred = (x_pred - sample) / sigmas.clamp_min(5e-2)
         
+        # loss = torch.mean(
+        #     (weighting.float() * (v_pred.float() - v.float()) ** 2).reshape(target.shape[0], -1),
+        #     dim=1,
+        # ).mean()
+
         loss = torch.mean(
-            (weighting.float() * (v_pred.float() - v.float()) ** 2).reshape(target.shape[0], -1),
+            (weighting.float() * (x_pred.float() - target.float()) ** 2).reshape(target.shape[0], -1),
             dim=1,
         ).mean()
+        
 
         return {
             "loss": loss.detach().item(),

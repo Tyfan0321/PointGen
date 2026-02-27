@@ -188,13 +188,17 @@ class PointGenPipeline(DiffusionPipeline):
         )
         # sample = model_data_dict["src_points_c"].unsqueeze(0)
 
-        # with self.progress_bar(total=num_inference_steps) as progress_bar:
         for t, s in zip(timesteps, sigmas):
             # v_pred, ov_gt = self.transformer(sample, t.unsqueeze(0), **model_data_dict, return_dict=False)[:2]
             x_pred, ov_gt = self.transformer(sample, t.unsqueeze(0), **model_data_dict, return_dict=False)[:2]
             v_pred = (sample - x_pred) / s.clamp_min(5e-2)
+            # x_pred_gt = (model_data_dict["tgt_points_c"] - torch.mean(model_data_dict["ref_points_c"], dim=0)) / (torch.std(model_data_dict["ref_points_c"], dim=0) + 1e-8)
+            # v_pred_gt = (sample - x_pred_gt) / s.clamp_min(5e-2)
+            # print(x_pred[0][0])
+            # print(x_pred_gt[0])
+            # if t == 1000:
+            #     v_pred = v_pred_gt
             sample = self.scheduler.step(v_pred, t, sample).prev_sample
-                # progress_bar.update()
         
         return (sample, model_data_dict["tgt_points_c"], model_data_dict["ref_points_c"], model_data_dict["tgt_points_c_corr"],  model_data_dict["src_points_c"], ov_gt)
     

@@ -53,8 +53,8 @@ class DiffusionEvaluator:
             all_te.append(te.float().item())
             all_re.append(re.float().item())
             all_rr.append(rr.float().item())
-            overlap_mask = gt_overlap > 0.5
 
+            # overlap_mask = gt_overlap > 0.5
             if False and overlap_mask.sum() > 0:
                 ov_dist_error = torch.norm(pred_points[overlap_mask] - tgt_points[overlap_mask], dim=-1).mean()
                 dist_ov_error.append(ov_dist_error)

@@ -3,40 +3,25 @@ from omegaconf import DictConfig
 from src.engine import DiffusionTrainer
 
 
-@hydra.main(version_base=None, config_path="./config", config_name="config")
+@hydra.main(version_base=None, config_path="./config", config_name="config_bak")
 def main(cfg: DictConfig):
-    import argparse
-    parser = argparse.ArgumentParser(description="PointGen 训练脚本")
-    parser.add_argument(
-        "--resume", 
-        type=str, 
-        default=None, 
-        help="从检查点恢复训练，指定检查点路径或 'latest'"
-    )
-    parser.add_argument(
-        "--eval_only", 
-        action="store_true", 
-        default=False, 
-        help="仅运行评估，不进行训练"
-    )
-    args = parser.parse_args()
     print("Creating DiffusionTrainer...")
     trainer = DiffusionTrainer(cfg)
     
-    if args.eval_only:
+    if cfg.eval_only:
         trainer.prepare_data()
         trainer.prepare_model()
         trainer.model, trainer.optimizer, trainer.lr_scheduler, ddp_train_loader, ddp_val_loader = trainer.accelerator.prepare(
             trainer.model, trainer.optimizer, trainer.lr_scheduler, trainer.train_loader, trainer.val_loader
         )
         print("Running evaluation only...")
-        if args.resume:
-            trainer.accelerator.load_state(args.resume)
-            print(f"Loaded checkpoint from {args.resume}")
+        if cfg.resume:
+            trainer.accelerator.load_state(cfg.resume)
+            print(f"Loaded checkpoint from {cfg.resume}")
         trainer.validate(ddp_val_loader, epoch=0)
     else:
         print("Starting training...")
-        trainer.fit(resume_from_checkpoint=args.resume)
+        trainer.fit(resume_from_checkpoint=cfg.resume)
 
 
 if __name__ == "__main__":

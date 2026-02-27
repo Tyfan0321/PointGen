@@ -120,7 +120,7 @@ data:
 
 #### Single GPU Training
 ```bash
-python src/scripts/train.py
+python train.py
 ```
 
 #### Multi-GPU Training
@@ -128,22 +128,22 @@ Using Accelerate for distributed training:
 
 ```bash
 # Using all available GPUs
-accelerate launch src/scripts/train.py
+accelerate launch train.py
 
 # Using specific GPUs
-CUDA_VISIBLE_DEVICES=0,1 accelerate launch src/scripts/train.py
+CUDA_VISIBLE_DEVICES=0,1 accelerate launch train.py
 
 # With specific number of processes
-accelerate launch --num_processes=2 src/scripts/train.py
+accelerate launch --num_processes=2 train.py
 ```
 
 #### Resume Training
 ```bash
 # Single GPU
-python src/scripts/train.py --resume ./result/checkpoint-epoch-10
+python train.py resume=./result/checkpoint-epoch-10
 
 # Multi-GPU
-accelerate launch src/scripts/train.py --resume ./result/checkpoint-epoch-10
+accelerate launch train.py resume=./result/checkpoint-epoch-10
 ```
 
 ### Evaluation
@@ -152,10 +152,10 @@ The evaluation is automatically performed during training at regular intervals. 
 
 ```bash
 # Single GPU evaluation
-python src/scripts/train.py --resume ./result/checkpoint-epoch-30 --eval_only
+python train.py resume=./result/checkpoint-epoch-30 eval_only=true
 
 # Multi-GPU evaluation
-accelerate launch src/scripts/train.py --resume ./result/checkpoint-epoch-30 --eval_only
+accelerate launch train.py resume=./result/checkpoint-epoch-30 eval_only=true
 ```
 
 ### Key Features
@@ -178,5 +178,5 @@ accelerate launch src/scripts/train.py --resume ./result/checkpoint-epoch-30 --e
 - **Training Logic**: `src/engine/diffusion_trainer.py` implements the diffusion model training logic.
 - **Data Processing**: `src/engine/data_processor.py` handles data preparation and loss calculation.
 - **Evaluation**: `src/engine/evaluator.py` computes evaluation metrics.
-- **Main Script**: `src/scripts/train.py` is the entry point for training and evaluation.
+- **Main Script**: `train.py` is the entry point for training and evaluation.
 

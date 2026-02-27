@@ -1,0 +1,91 @@
+# 实验名称
+experiment_name: mode_0_x_loss
+resume: null
+eval_only: false
+
+# 基础配置
+seed: 1
+runname: 3dmatch
+num_workers: 8
+train_batch_size: 32
+gradient_accumulation_steps: 4
+num_train_epochs: 200
+num_train_steps: null
+log_steps: 1
+ckpt_epochs: 5
+val_epochs: 1
+clip_grad_norm: 1.0
+feat_stop_epoch: 0
+do_gen: true
+num_gen_samples: 10
+num_inference_steps: 5
+inference_type: fm-euler
+
+# 输出配置
+output_dir: ./outputs/${experiment_name}/${runname}/${now:%Y-%m-%d}
+log_with: tensorboard
+# 混合精度训练配置
+mixed_precision: 'fp16' # ['no', 'fp16', 'bf16']
+
+hydra:
+  run:
+    dir: ./outputs/${experiment_name}/${runname}/${now:%Y-%m-%d}
+
+# 噪声调度器配置
+scheduler:
+  num_train_timesteps: 1000
+
+
+data:
+  dataset_type: 3dmatch
+  root: /remote-home/share/datasets/3DMatch/raw_data
+  data_list: ./data/3dmatch_list/
+  npoints: 30000
+  voxel_size: 0.025
+  augment: 1.0
+
+defaults:
+  - _self_
+  - encoder: 3dmatch/sonata
+
+# 模型配置
+model:
+  # 通用参数
+  in_dim: 3
+  hidden_dim: 256
+  num_attention_heads: 8
+  activation_fn: geglu
+  num_layers: 6
+  norm_type: ada_norm_zero
+  scale: null
+
+# 优化器配置
+optim:
+  lr: 1e-4
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_eps: 1e-8
+  adam_weight_decay: 1e-4
+
+# 学习率调度器配置
+lr_scheduler:
+  name: cosine
+  lr_warmup_steps: 1000
+  lr_num_cycles: 0.5
+
+# 损失配置
+loss:
+  r_p: 0.05
+  r_n: 0.06
+
+# 评估配置
+eval:
+  rte_threshold: 0.3
+  rre_threshold: 15.0
+
+# 扩散模型配置
+diffusion:
+  weighting_scheme: mode
+  logit_mean: 0.0
+  logit_std: 1.0
+  mode_scale: 0.0
