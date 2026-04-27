@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from . import KittiDataset, IndoorDataset
+from . import KittiDataset, IndoorDataset, IndoorTestDataset
 
 
 class DatasetFactory:
@@ -22,14 +22,32 @@ class DatasetFactory:
                 augment=data_config.augment
             )
         elif dataset_type == "3dmatch":
-            dataset = IndoorDataset(
-                seqs=seqs,
-                root=data_config.root,
-                data_list=data_config.data_list,
-                npoints=data_config.npoints,
-                voxel_size=data_config.voxel_size,
-                augment=data_config.augment
-            )
+            if seqs == "test":
+                dataset = [
+                    IndoorTestDataset(
+                        seqs="3DMatch",
+                        root=data_config.root,
+                        data_list=data_config.data_list,
+                        npoints=data_config.npoints,
+                        voxel_size=data_config.voxel_size,
+                    ), 
+                    IndoorTestDataset(
+                        seqs="3DLoMatch",
+                        root=data_config.root,
+                        data_list=data_config.data_list,
+                        npoints=data_config.npoints,
+                        voxel_size=data_config.voxel_size,
+                    )
+                ]
+            else:
+                dataset = IndoorDataset(
+                    seqs=seqs,
+                    root=data_config.root,
+                    data_list=data_config.data_list,
+                    npoints=data_config.npoints,
+                    voxel_size=data_config.voxel_size,
+                    augment=data_config.augment
+                )
         else:
             raise ValueError(f"Unknown dataset type: {dataset_type}")
         

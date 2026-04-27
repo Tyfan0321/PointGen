@@ -5,7 +5,7 @@ from diffusers import FlowMatchEulerDiscreteScheduler
 from diffusers.optimization import get_scheduler
 
 from src.data.dataset_factory import DatasetFactory
-from src.models.transformer_regtr import RegTrGenerative
+from src.models.transformer_regtr_v0 import RegTrGenerative
 from src.engine.trainer_base import BaseTrainer
 from src.engine.processor_generative import DiffusionDataProcessor
 from src.engine.processor_model import create_point_cloud_processor
@@ -21,7 +21,7 @@ class DiffusionTrainer(BaseTrainer):
     
     def prepare_data(self):
         train_dataset = DatasetFactory.create(self.cfg.data, seqs="train")
-        val_dataset = DatasetFactory.create(self.cfg.data, seqs="val")
+        val_dataset, _ = DatasetFactory.create(self.cfg.data, seqs="test")
         
         self.train_loader = torch.utils.data.DataLoader(
             train_dataset, 
