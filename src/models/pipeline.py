@@ -147,6 +147,8 @@ class PointGenPipeline(DiffusionPipeline):
         dist_keypts = torch.cdist(ref_points_c, tgt_points_c)
         dist_min, closest_ref_indices = torch.min(dist_keypts, dim=0)
         tgt_points_c_corr = ref_points_c[closest_ref_indices]
+        
+        scale = torch.std(ref_points_c) + 1e-8
 
         return {
             "ref_points_c": ref_points_c,
@@ -155,6 +157,7 @@ class PointGenPipeline(DiffusionPipeline):
             "tgt_points_c_corr": tgt_points_c_corr,
             "encoder_inputs": encoder_inputs,
             "overlap_list": overlap_list,
+            "scale": scale.unsqueeze(0),
         }
     
     def prepare_sample(self, batch_size, num_channels, length, dtype, device, generator):
@@ -189,17 +192,15 @@ class PointGenPipeline(DiffusionPipeline):
         # sample = model_data_dict["src_points_c"].unsqueeze(0)
 
         for t, s in zip(timesteps, sigmas):
-            # v_pred, ov_gt = self.transformer(sample, t.unsqueeze(0), **model_data_dict, return_dict=False)[:2]
-            x_pred, ov_gt = self.transformer(sample, t.unsqueeze(0), **model_data_dict, return_dict=False)[:2]
-            v_pred = (sample - x_pred) / s.clamp_min(5e-2)
-            # x_pred_gt = (model_data_dict["tgt_points_c"] - torch.mean(model_data_dict["ref_points_c"], dim=0)) / (torch.std(model_data_dict["ref_points_c"], dim=0) + 1e-8)
-            # v_pred_gt = (sample - x_pred_gt) / s.clamp_min(5e-2)
-            # print(x_pred[0][0])
-            # print(x_pred_gt[0])
-            # if t == 1000:
+            v_pred, ov_gt = self.transformer(sample, t.unsqueeze(0), **model_data_dict, return_dict=False)[:2]
+            # x_pred, ov_gt = self.transformer(sample, t.unsqueeze(0), **model_data_dict, return_dict=False)[:2]
+            # v_pred = (sample - x_pred) / s
+
+            # if t == timesteps[0]:
+            #     x_pred_gt = (model_data_dict["tgt_points_c"] - torch.mean(model_data_dict["ref_points_c"], dim=0)) / (torch.std(model_data_dict["ref_points_c"], dim=0) + 1e-8)
+            #     v_pred_gt = (sample - x_pred_gt) / s
             #     v_pred = v_pred_gt
-            sample = self.scheduler.step(v_pred, t, sample).prev_sample
-        
+            sample = self.scheduler.step(-v_pred, t, sample).prev_sample
         return (sample, model_data_dict["tgt_points_c"], model_data_dict["ref_points_c"], model_data_dict["tgt_points_c_corr"],  model_data_dict["src_points_c"], ov_gt)
     
 

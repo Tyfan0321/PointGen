@@ -43,7 +43,7 @@ class DiffusionEvaluator:
             )
             
             pred_points = pred_points.squeeze(0)
-            pred_points = pred_points * torch.std(ref_points, dim=0) + torch.mean(ref_points, dim=0)
+            pred_points = pred_points * torch.std(ref_points) + torch.mean(ref_points, dim=0)
             
             per_point_dist_error = torch.norm(pred_points - tgt_points, dim=-1).mean()
             dist_error.append(per_point_dist_error)

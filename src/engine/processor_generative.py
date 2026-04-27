@@ -70,7 +70,7 @@ class DiffusionDataProcessor:
         
         noise = torch.randn_like(target, device=target.device)
         
-        target = (target - torch.mean(ref_points_c, dim=0)) / (torch.std(ref_points_c, dim=0) + 1e-8)
+        target = (target - torch.mean(ref_points_c, dim=0)) / (torch.std(ref_points_c) + 1e-8)
         
         u = compute_density_for_timestep_sampling(
             weighting_scheme=self.weighting_scheme,
@@ -120,19 +120,20 @@ class DiffusionDataProcessor:
             sigmas=sigmas
         )
         
-        v = (target - sample) / sigmas.clamp_min(5e-2)
-        x_pred = model_output.sample
-        v_pred = (x_pred - sample) / sigmas.clamp_min(5e-2)
+        v = (target - sample) / sigmas.clamp_min(5e-5)
+        v_pred = model_output.sample
+        # x_pred = model_output.sample
+        # v_pred = (x_pred - sample) / sigmas.clamp_min(5e-5)
         
-        # loss = torch.mean(
-        #     (weighting.float() * (v_pred.float() - v.float()) ** 2).reshape(target.shape[0], -1),
-        #     dim=1,
-        # ).mean()
-
         loss = torch.mean(
-            (weighting.float() * (x_pred.float() - target.float()) ** 2).reshape(target.shape[0], -1),
+            (weighting.float() * (v_pred.float() - v.float()) ** 2).reshape(target.shape[0], -1),
             dim=1,
         ).mean()
+
+        # loss = torch.mean(
+        #     (weighting.float() * (x_pred.float() - target.float()) ** 2).reshape(target.shape[0], -1),
+        #     dim=1,
+        # ).mean()
         
 
         return {
