@@ -310,8 +310,8 @@ class RegTrGenerative(ModelMixin, ConfigMixin):
         sample_pos_emb = self.pos_emb(sample_pos_emb)
         # sample_pos_emb = sample * sample.new_tensor(self.scale)
         # sample_pos_emb = self.pos_emb(sample_pos_emb + tgt_points_c_corr)
-        ref_feats_b = ref_feats.detach().expand(sample.shape[0], -1, -1)
-        src_feats_b = src_feats.detach().expand(sample.shape[0], -1, -1)
+        ref_feats_b = ref_feats.expand(sample.shape[0], -1, -1)
+        src_feats_b = src_feats.expand(sample.shape[0], -1, -1)
 
         # hidden_states = self.proj_in(sample) 
         # hidden_states = src_feats_b + hidden_states + sample_pos_emb
