@@ -87,8 +87,22 @@ class BaseTrainer(ABC):
             self.model, self.optimizer, self.lr_scheduler, self.train_loader, self.val_loader
         )
         
+        initial_epoch = 0
         global_step = 0
-        for epoch in tqdm(range(self.num_train_epochs), desc="Epochs", unit="epoch", disable=not self.accelerator.is_main_process):
+        
+        if resume_from_checkpoint:
+            self.accelerator.print(f"Resuming from checkpoint: {resume_from_checkpoint}")
+            self.accelerator.load_state(resume_from_checkpoint)
+            basename = os.path.basename(resume_from_checkpoint.rstrip('/'))
+            if basename.startswith("epoch-"):
+                initial_epoch = int(basename.split("-")[1]) + 1
+                # global_step calculation
+                steps_per_epoch = len(ddp_train_loader)
+                # sync_gradients triggers roughly len(ddp_train_loader) // grad_accum_steps times
+                updates_per_epoch = (steps_per_epoch + self.gradient_accumulation_steps - 1) // self.gradient_accumulation_steps
+                global_step = initial_epoch * updates_per_epoch
+        
+        for epoch in tqdm(range(initial_epoch, self.num_train_epochs), desc="Epochs", unit="epoch", initial=initial_epoch, total=self.num_train_epochs, disable=not self.accelerator.is_main_process):
             self.model.train()
             epoch_loss = 0.0
             epoch_steps = 0
