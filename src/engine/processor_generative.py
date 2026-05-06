@@ -120,7 +120,7 @@ class DiffusionDataProcessor:
             sigmas=sigmas
         )
         
-        v = (target - sample) / sigmas.clamp_min(5e-5)
+        v = (target - sample) / sigmas.clamp_min(1e-5)
         v_pred = model_output.sample
         # x_pred = model_output.sample
         # v_pred = (x_pred - sample) / sigmas.clamp_min(5e-5)
