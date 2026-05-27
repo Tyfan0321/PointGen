@@ -81,6 +81,7 @@ loss:
 eval:
   rte_threshold: 0.3
   rre_threshold: 15.0
+  use_overlap_metrics: false
 
 # 扩散模型配置
 diffusion:

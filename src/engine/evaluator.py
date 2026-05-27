@@ -7,10 +7,15 @@ from src.models.pipeline import Evaluator
 
 class DiffusionEvaluator:    
     def __init__(self, cfg, processor=None, noise_scheduler=None):
-        self.evaluator = Evaluator(**cfg.eval)
+        self.evaluator = Evaluator(
+            rre_threshold=cfg.eval.rre_threshold,
+            rte_threshold=cfg.eval.rte_threshold,
+        )
         self.num_gen_samples = cfg.num_gen_samples
         self.num_inference_steps = cfg.num_inference_steps
         self.inference_type = cfg.inference_type
+        self.use_overlap_metrics = cfg.eval.get("use_overlap_metrics", False)
+        self.overlap_radius = cfg.data.voxel_size * 1.5
         self.processor = processor
         self.noise_scheduler = noise_scheduler
     
@@ -32,6 +37,10 @@ class DiffusionEvaluator:
         all_re_ov = []
         all_te_ov = []
         all_rr_ov = []
+        all_re_w = []
+        all_te_w = []
+        all_rr_w = []
+        overlap_ratios = []
         
         progress_bar = tqdm(dataloader, desc="Evaluation")
         
@@ -54,24 +63,37 @@ class DiffusionEvaluator:
             all_re.append(re.float().item())
             all_rr.append(rr.float().item())
 
-            # overlap_mask = gt_overlap > 0.5
-            if False and overlap_mask.sum() > 0:
-                ov_dist_error = torch.norm(pred_points[overlap_mask] - tgt_points[overlap_mask], dim=-1).mean()
-                dist_ov_error.append(ov_dist_error)
-                pred_transform_ov = weighted_svd(src_points.squeeze(0)[overlap_mask], pred_points[overlap_mask])
-                te_ov, re_ov, rr_ov = self.compute_transform_error(data_dict["Tr"].squeeze(0), pred_transform_ov)
-                all_re_ov.append(re_ov.float().item())
-                all_te_ov.append(te_ov.float().item())
-                all_rr_ov.append(rr_ov.float().item())
+            if self.use_overlap_metrics:
+                dist_to_ref = torch.cdist(tgt_points, ref_points).min(dim=1).values
+                overlap_weights = (dist_to_ref <= self.overlap_radius).float()
+                overlap_mask = overlap_weights > 0.5
+                overlap_ratios.append(overlap_mask.float().mean().item())
 
-                ov_metrics = {
-                    "dist_ov_error": torch.tensor(dist_ov_error).mean().detach().item(),
-                    "RREO": torch.tensor(all_re_ov).mean().item(),
-                    "RTEO": torch.tensor(all_te_ov).mean().item(),
-                    "RRO": torch.tensor(all_rr_ov).mean().item()
-                }
+                if overlap_weights.sum() > 0:
+                    pred_transform_w = weighted_svd(
+                        src_points.squeeze(0),
+                        pred_points,
+                        weights=overlap_weights,
+                    )
+                    te_w, re_w, rr_w = self.compute_transform_error(data_dict["Tr"].squeeze(0), pred_transform_w)
+                    all_re_w.append(re_w.float().item())
+                    all_te_w.append(te_w.float().item())
+                    all_rr_w.append(rr_w.float().item())
+
+                if gt_overlap is not None and gt_overlap.numel() == pred_points.shape[0]:
+                    overlap_weights = gt_overlap.float().reshape(-1).to(pred_points.device)
+                    overlap_mask = overlap_weights > 0.5
+
+                if overlap_mask.sum() >= 3:
+                    ov_dist_error = torch.norm(pred_points[overlap_mask] - tgt_points[overlap_mask], dim=-1).mean()
+                    dist_ov_error.append(ov_dist_error)
+                    pred_transform_ov = weighted_svd(src_points.squeeze(0)[overlap_mask], pred_points[overlap_mask])
+                    te_ov, re_ov, rr_ov = self.compute_transform_error(data_dict["Tr"].squeeze(0), pred_transform_ov)
+                    all_re_ov.append(re_ov.float().item())
+                    all_te_ov.append(te_ov.float().item())
+                    all_rr_ov.append(rr_ov.float().item())
             
-            if i == self.num_gen_samples - 1:
+            if self.num_gen_samples is not None and i == self.num_gen_samples - 1:
                 break
         
         metrics = {
@@ -80,6 +102,21 @@ class DiffusionEvaluator:
             "RTE": torch.tensor(all_te).mean().item(),
             "RR": torch.tensor(all_rr).mean().item(),
         }
+        if len(dist_ov_error) > 0:
+            metrics.update({
+                "dist_ov_error": torch.tensor(dist_ov_error).mean().detach().item(),
+                "RRE_ov": torch.tensor(all_re_ov).mean().item(),
+                "RTE_ov": torch.tensor(all_te_ov).mean().item(),
+                "RR_ov": torch.tensor(all_rr_ov).mean().item(),
+            })
+        if len(all_re_w) > 0:
+            metrics.update({
+                "RRE_w": torch.tensor(all_re_w).mean().item(),
+                "RTE_w": torch.tensor(all_te_w).mean().item(),
+                "RR_w": torch.tensor(all_rr_w).mean().item(),
+            })
+        if len(overlap_ratios) > 0:
+            metrics["overlap_ratio"] = torch.tensor(overlap_ratios).mean().item()
         
         return metrics
     
