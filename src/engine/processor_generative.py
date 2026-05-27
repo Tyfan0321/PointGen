@@ -114,13 +114,14 @@ class DiffusionDataProcessor:
         target = data_dict["target"]
         sample = data_dict["sample"]
         sigmas = data_dict["sigmas"]
+        noise = data_dict["noise"]
         
         weighting = compute_loss_weighting_for_sd3(
             weighting_scheme=self.weighting_scheme, 
             sigmas=sigmas
         )
         
-        v = (target - sample) / sigmas.clamp_min(1e-5)
+        v = target - noise
         v_pred = model_output.sample
         # x_pred = model_output.sample
         # v_pred = (x_pred - sample) / sigmas.clamp_min(5e-5)
