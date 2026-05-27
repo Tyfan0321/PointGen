@@ -18,6 +18,19 @@ class DiffusionTrainer(BaseTrainer):
         self.data_processor = DiffusionDataProcessor(cfg)
         self.evaluator = DiffusionEvaluator(cfg)
         self.feat_stop_epoch = cfg.feat_stop_epoch
+
+    def _zero_grad(self):
+        try:
+            self.optimizer.zero_grad(set_to_none=True)
+        except TypeError:
+            self.optimizer.zero_grad()
+
+    def _first_nonfinite_gradient_name(self):
+        model = self.accelerator.unwrap_model(self.model)
+        for name, param in model.named_parameters():
+            if param.grad is not None and not torch.isfinite(param.grad).all():
+                return name
+        return None
     
     def prepare_data(self):
         train_dataset = DatasetFactory.create(self.cfg.data, seqs="train")
@@ -87,15 +100,46 @@ class DiffusionTrainer(BaseTrainer):
         model_output = self.model(**train_data_dict)
         
         loss_dict = self.data_processor.compute_loss(model_output, train_data_dict, current_epoch, self.feat_stop_epoch)
+        loss = loss_dict["overall_loss"]
 
-        self.accelerator.backward(loss_dict["overall_loss"])
+        if not torch.isfinite(loss):
+            if self.accelerator.is_main_process:
+                self.logger.warning(f"Skipping non-finite loss at epoch {current_epoch + 1}.")
+            self._zero_grad()
+            loss_dict["loss"] = 0.0
+            loss_dict["overall_loss"] = 0.0
+            loss_dict["skipped_nonfinite_loss"] = 1
+            return loss_dict, 0.0
+
+        self.accelerator.backward(loss)
 
         grad_norm = None
         if self.accelerator.sync_gradients:
             grad_norm = self.accelerator.clip_grad_norm_(self.model.parameters(), self.clip_grad_norm)
-            self.optimizer.step()
-            self.lr_scheduler.step()
-            self.optimizer.zero_grad()
+            grad_norm_tensor = grad_norm if isinstance(grad_norm, torch.Tensor) else torch.tensor(grad_norm, device=self.accelerator.device)
+            if torch.isfinite(grad_norm_tensor):
+                self.optimizer.step()
+                if not getattr(self.optimizer, "step_was_skipped", False):
+                    self.lr_scheduler.step()
+                elif self.accelerator.is_main_process:
+                    self.logger.warning(f"Skipping scheduler step because optimizer step was skipped at epoch {current_epoch + 1}.")
+            else:
+                bad_grad_name = self._first_nonfinite_gradient_name()
+                if self.accelerator.is_main_process:
+                    self.logger.warning(
+                        f"Skipping optimizer and scheduler steps for non-finite grad norm at epoch {current_epoch + 1}"
+                        + (f" (first bad grad: {bad_grad_name})." if bad_grad_name else ".")
+                    )
+                loss_dict["skipped_nonfinite_grad"] = 1
+                scaler = getattr(self.accelerator, "scaler", None)
+                if scaler is not None:
+                    try:
+                        scaler.update()
+                    except AssertionError:
+                        pass
+            self._zero_grad()
+
+        loss_dict["overall_loss"] = float(loss.detach().item())
         
         return loss_dict, grad_norm
     
@@ -114,11 +158,6 @@ class DiffusionTrainer(BaseTrainer):
         total_loss = torch.tensor(0.0, device=self.accelerator.device)
         # total_infonce_loss = torch.tensor(0.0, device=self.accelerator.device)
         num_samples = torch.tensor(0, device=self.accelerator.device)
-
-        if self.do_gen and self.accelerator.is_main_process:
-            gen_log = self.evaluator.evaluate(self.model, val_loader)
-            self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
-            self.accelerator.log(gen_log, step=epoch + 1)
         
         for step, data_dict in enumerate(val_loader):
             val_loss_dict = self.val_step(data_dict)
@@ -139,3 +178,11 @@ class DiffusionTrainer(BaseTrainer):
             }
             self.logger.info(f"Epoch {epoch + 1}, Validation Loss: {global_loss.item():.4f}")
             self.accelerator.log(val_log, step=epoch + 1)
+
+        if self.do_gen:
+            self.accelerator.wait_for_everyone()
+            if self.accelerator.is_main_process:
+                gen_log = self.evaluator.evaluate(self.model, val_loader)
+                self.logger.info(f"Epoch {epoch + 1}, Generation Metrics: {gen_log}")
+                self.accelerator.log(gen_log, step=epoch + 1)
+            self.accelerator.wait_for_everyone()

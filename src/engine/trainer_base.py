@@ -95,7 +95,7 @@ class BaseTrainer(ABC):
             self.accelerator.load_state(resume_from_checkpoint)
             basename = os.path.basename(resume_from_checkpoint.rstrip('/'))
             if basename.startswith("epoch-"):
-                initial_epoch = int(basename.split("-")[1]) + 1
+                initial_epoch = int(basename.split("-")[1])
                 # global_step calculation
                 steps_per_epoch = len(ddp_train_loader)
                 # sync_gradients triggers roughly len(ddp_train_loader) // grad_accum_steps times
@@ -132,9 +132,12 @@ class BaseTrainer(ABC):
             
             if (epoch + 1) % self.val_epochs == 0 or epoch == self.num_train_epochs - 1:
                 self.validate(ddp_val_loader, epoch)
+                self.accelerator.wait_for_everyone()
             
             if (epoch + 1) % self.ckpt_epochs == 0 or epoch == self.num_train_epochs - 1:
+                self.accelerator.wait_for_everyone()
                 self.save_checkpoint(epoch)
+                self.accelerator.wait_for_everyone()
         
         self.accelerator.end_training()
     
@@ -143,6 +146,6 @@ class BaseTrainer(ABC):
     
     def save_checkpoint(self, epoch):
         if self.accelerator.is_main_process:
-            save_path = os.path.join(self.output_dir, "ckpt", f"epoch-{epoch}")
+            save_path = os.path.join(self.output_dir, "ckpt", f"epoch-{epoch + 1}")
             self.accelerator.save_state(save_path)
             self.logger.info(f"Saved state to {save_path}")

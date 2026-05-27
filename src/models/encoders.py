@@ -77,7 +77,7 @@ class SonataEncoder(torch.nn.Module):
     
     def forward(self, point):
         assert "feat" in point, "point needs to be processed"
-        with torch.inference_mode():
+        with torch.no_grad():
             point = self.model(point)
 
             layers = []

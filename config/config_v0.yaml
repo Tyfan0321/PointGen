@@ -6,7 +6,7 @@ resume: null
 seed: 1
 runname: 3dmatch
 num_workers: 8
-train_batch_size: 24
+train_batch_size: 16
 gradient_accumulation_steps: 4
 num_train_epochs: 200
 num_train_steps: null
@@ -24,7 +24,7 @@ inference_type: fm-euler
 output_dir: ./outputs/${experiment_name}/${runname}/${now:%Y-%m-%d}
 log_with: tensorboard
 # 混合精度训练配置
-mixed_precision: 'fp16' # ['no', 'fp16', 'bf16']
+mixed_precision: 'no' # ['no', 'fp16', 'bf16']
 
 hydra:
   run:
