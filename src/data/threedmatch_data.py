@@ -8,6 +8,8 @@ from scipy.spatial.transform import Rotation as R
 import torch
 from torch.utils.data import Dataset
 
+from src.data.augmentation_3dmatch import ThreeDMatchAugmentor
+
 
 def read_3dmatch_bin_voxel(filename, npoints=None, voxel_size=None) -> np.ndarray:
     scan = np.array(o3d.io.read_point_cloud(filename).voxel_down_sample(voxel_size=voxel_size).points)
@@ -28,7 +30,7 @@ def compute_overlap(src: np.ndarray, tgt: np.ndarray, search_voxel_size: float):
 
 
 class IndoorDataset(Dataset):
-    def __init__(self, root, seqs, npoints, voxel_size, data_list, augment=0.0):
+    def __init__(self, root, seqs, npoints, voxel_size, data_list, augment=0.0, augmentation=None):
         super(IndoorDataset, self).__init__()
         self.root = root
         self.seqs = seqs
@@ -36,6 +38,7 @@ class IndoorDataset(Dataset):
         self.voxel_size = voxel_size  # 0.025
         self.overlap_radius = voxel_size * 1.5 # 0.0375
         self.augment = augment
+        self.augmentor = ThreeDMatchAugmentor(augment, augmentation) if augmentation is not None else None
         self.data_list = data_list
         self.dataset = self.make_dataset()
     
@@ -64,9 +67,11 @@ class IndoorDataset(Dataset):
         data_dict = self.dataset[index]
         ref_points = read_3dmatch_bin_voxel(data_dict['points1'], self.npoints, self.voxel_size)
         src_points = read_3dmatch_bin_voxel(data_dict['points2'], self.npoints, self.voxel_size)
-        Tr = data_dict['Tr']
+        Tr = data_dict['Tr'].copy()
         
-        if np.random.rand() < self.augment:
+        if self.augmentor is not None:
+            ref_points, src_points, Tr = self.augmentor(ref_points, src_points, Tr)
+        elif np.random.rand() < self.augment:
             aug_T = np.eye(4, dtype=np.float32)
             aug_T[:3,:3] = self.sample_random_rotation()
             src_points = src_points @ aug_T[:3,:3]
@@ -91,7 +96,7 @@ class IndoorDataset(Dataset):
         roll = np.random.uniform(-roll_scale, roll_scale)
         pitch = np.random.uniform(-pitch_scale, pitch_scale)
         r = R.from_euler('xyz', [roll, pitch, 0.], degrees=False)
-        return r.as_matrix()
+        return r.as_matrix().astype(np.float32)
     
     def __len__(self):
         return len(self.dataset)

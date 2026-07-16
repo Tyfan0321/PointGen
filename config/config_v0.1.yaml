@@ -6,7 +6,7 @@ resume: null
 seed: 1
 runname: 3dmatch
 num_workers: 8
-train_batch_size: 16
+train_batch_size: 8
 gradient_accumulation_steps: 4
 num_train_epochs: 400
 num_train_steps: null
@@ -91,10 +91,10 @@ defaults:
 model:
   # 通用参数
   in_dim: 3
-  hidden_dim: 256
+  hidden_dim: 512
   num_attention_heads: 8
   activation_fn: geglu
-  num_layers: 6
+  num_layers: 8
   norm_type: ada_norm_zero
   scale: null
 

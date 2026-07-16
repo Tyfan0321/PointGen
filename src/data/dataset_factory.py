@@ -4,6 +4,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from . import KittiDataset, IndoorDataset, IndoorTestDataset
 
 
+def _get_config_value(config, key, default=None):
+    try:
+        return config.get(key, default)
+    except AttributeError:
+        return getattr(config, key, default)
+
+
 class DatasetFactory:
     @staticmethod
     def create(data_config, seqs="train"):
@@ -46,7 +53,8 @@ class DatasetFactory:
                     data_list=data_config.data_list,
                     npoints=data_config.npoints,
                     voxel_size=data_config.voxel_size,
-                    augment=data_config.augment
+                    augment=data_config.augment,
+                    augmentation=_get_config_value(data_config, "augmentation", None),
                 )
         else:
             raise ValueError(f"Unknown dataset type: {dataset_type}")

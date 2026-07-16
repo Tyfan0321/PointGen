@@ -12,6 +12,33 @@ from src.engine.processor_model import create_point_cloud_processor
 from src.engine.evaluator import DiffusionEvaluator
 
 
+def get_cosine_schedule_with_min_lr(
+    optimizer,
+    num_warmup_steps,
+    num_training_steps,
+    num_cycles=0.5,
+    min_lr_ratio=0.0,
+):
+    if min_lr_ratio < 0.0 or min_lr_ratio > 1.0:
+        raise ValueError(f"min_lr_ratio must be in [0, 1], got {min_lr_ratio}")
+
+    def lr_lambda(current_step):
+        if current_step < num_warmup_steps:
+            return float(current_step) / float(max(1, num_warmup_steps))
+
+        progress = float(current_step - num_warmup_steps) / float(
+            max(1, num_training_steps - num_warmup_steps)
+        )
+        progress = min(1.0, progress)
+        cosine_ratio = max(
+            0.0,
+            0.5 * (1.0 + math.cos(math.pi * 2.0 * num_cycles * progress)),
+        )
+        return min_lr_ratio + (1.0 - min_lr_ratio) * cosine_ratio
+
+    return optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+
+
 class DiffusionTrainer(BaseTrainer):
     def __init__(self, cfg):
         super().__init__(cfg)
@@ -78,13 +105,22 @@ class DiffusionTrainer(BaseTrainer):
         )
         
         num_training_steps = self.num_train_epochs * math.ceil(len(self.train_loader) / self.gradient_accumulation_steps)
-        self.lr_scheduler = get_scheduler(
-            self.cfg.lr_scheduler.name,
-            self.optimizer,
-            num_training_steps=num_training_steps,
-            num_warmup_steps=self.cfg.lr_scheduler.lr_warmup_steps * self.accelerator.num_processes,
-            num_cycles=self.cfg.lr_scheduler.lr_num_cycles,
-        )
+        if self.cfg.lr_scheduler.name == "cosine_with_min_lr":
+            self.lr_scheduler = get_cosine_schedule_with_min_lr(
+                self.optimizer,
+                num_training_steps=num_training_steps,
+                num_warmup_steps=self.cfg.lr_scheduler.lr_warmup_steps * self.accelerator.num_processes,
+                num_cycles=self.cfg.lr_scheduler.lr_num_cycles,
+                min_lr_ratio=self.cfg.lr_scheduler.get("min_lr_ratio", 0.0),
+            )
+        else:
+            self.lr_scheduler = get_scheduler(
+                self.cfg.lr_scheduler.name,
+                self.optimizer,
+                num_training_steps=num_training_steps,
+                num_warmup_steps=self.cfg.lr_scheduler.lr_warmup_steps * self.accelerator.num_processes,
+                num_cycles=self.cfg.lr_scheduler.lr_num_cycles,
+            )
         
         self.noise_scheduler = FlowMatchEulerDiscreteScheduler(**self.cfg.scheduler)
         
