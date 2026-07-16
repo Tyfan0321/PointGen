@@ -148,8 +148,6 @@ class PointGenPipeline(DiffusionPipeline):
         dist_min, closest_ref_indices = torch.min(dist_keypts, dim=0)
         tgt_points_c_corr = ref_points_c[closest_ref_indices]
         
-        scale = torch.std(ref_points_c) + 1e-8
-
         return {
             "ref_points_c": ref_points_c,
             "src_points_c": src_points_c,
@@ -157,7 +155,6 @@ class PointGenPipeline(DiffusionPipeline):
             "tgt_points_c_corr": tgt_points_c_corr,
             "encoder_inputs": encoder_inputs,
             "overlap_list": overlap_list,
-            "scale": scale.unsqueeze(0),
         }
     
     def prepare_sample(self, batch_size, num_channels, length, dtype, device, generator):
